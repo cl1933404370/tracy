@@ -1,10 +1,12 @@
-// test_chrome_export.cpp - End-to-end test for TracyChromeExport
-// Compile: g++ -std=c++17 -O2 -o test_chrome_export test_chrome_export.cpp -lpthread
-// Run:     ./test_chrome_export
-// Convert: ./import/build/tracy-import-chrome trace.json trace.tracy
-// View:    DISPLAY=:0 GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 ./profiler/build/tracy-profiler trace.tracy
+// ChromeExportExample.cpp - Example for TracyChromeExport offline tracer
+// Build:   mkdir build && cd build && cmake .. && make
+// Run:     ./ChromeExportExample
+// Output goes to stdout; pipe to file then import:
+//   ./ChromeExportExample > trace.json
+//   tracy-import-chrome trace.json trace.tracy
+//   tracy-profiler trace.tracy
 
-#include "public/tracy/TracyChromeExport.hpp"
+#include <tracy/TracyChromeExport.hpp>
 #include <cstdio>
 #include <cmath>
 #include <thread>
@@ -38,7 +40,6 @@ void ProcessFrame( int frameId )
     ParseData();
     CompressData();
 
-    // Record a plot value: simulated FPS
     ChromePlot( "fps", 60.0 - frameId * 0.5 );
     ChromePlot( "memory_bytes", 1024 * 1024 * (frameId + 1) );
 
@@ -58,17 +59,32 @@ void WorkerThread( int id )
     }
 }
 
+// Example: write a complete Chrome JSON file via callback
+static FILE* g_outFile = nullptr;
+static bool  g_first = true;
+
+void WriteEventLine( const char* json )
+{
+    if( !g_first ) fprintf( g_outFile, ",\n" );
+    g_first = false;
+    fputs( json, g_outFile );
+}
+
+// Global init: register callback and main thread name before main()
+static struct ChromeInit {
+    ChromeInit() {
+        ChromeSetOutputCallback( WriteEventLine );
+        ChromeSetThreadName( "MainThread" );
+    }
+} g_chromeInit;
+
 int main()
 {
-    ChromeSetThreadName( "MainThread" );
+    fprintf( stderr, "Running test...\n" );
 
-    printf( "Running test...\n" );
-
-    // Main thread: 10 frames
     for( int i = 0; i < 10; i++ )
         ProcessFrame( i );
 
-    // Spawn 3 worker threads
     std::thread t1( WorkerThread, 0 );
     std::thread t2( WorkerThread, 1 );
     std::thread t3( WorkerThread, 2 );
@@ -76,13 +92,15 @@ int main()
     t2.join();
     t3.join();
 
-    // Save
-    const char* outPath = "trace.json";
-    if( ChromeTraceSave( outPath ) )
-        printf( "Saved %zu events to %s\n",
-            chrome_export::ChromeTracer::Instance().EventCount(), outPath );
-    else
-        printf( "Failed to save!\n" );
+    // Flush all events through callback → write to file
+    g_outFile = fopen( "trace.json", "w" );
+    fprintf( g_outFile, "{\"traceEvents\":[\n" );
+    ChromeFlushToCallback();
+    fprintf( g_outFile, "\n]}\n" );
+    fclose( g_outFile );
+
+    fprintf( stderr, "Saved %zu events to trace.json\n",
+        chrome_export::ChromeTracer::Instance().EventCount() );
 
     return 0;
 }

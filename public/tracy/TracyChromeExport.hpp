@@ -2,59 +2,59 @@
 #define __TRACY_CHROME_EXPORT_HPP__
 
 // TracyChromeExport - Lightweight offline tracer that outputs Chrome JSON format
-// Reuses Tracy's timing and threading primitives for maximum compatibility.
+// Reuses Tracy's thread-ID primitive; uses thread-local buffers for lock-free recording.
 //
 // Usage:
 //   #include "tracy/TracyChromeExport.hpp"
 //
 //   void MyFunction() {
 //       ChromeZoneScoped;            // automatic function name
-//       // ... work ...
-//   }
-//
-//   void MyFunction2() {
-//       ChromeZoneNamed("CustomName");  // custom zone name
-//       // ... work ...
 //   }
 //
 //   int main() {
-//       ChromeTracer::Instance().SetThreadName("MainThread");
+//       // Set callback to receive each JSON event line (print, log, write file, etc.)
+//       ChromeSetOutputCallback([](const char* line) { printf("%s\n", line); });
+//       ChromeSetThreadName("MainThread");
 //       MyFunction();
-//       MyFunction2();
-//       ChromeTracer::Instance().Save("trace.json");
+//       // Flush buffered events through callback (call after threads joined)
+//       ChromeFlushToCallback();
 //   }
-//
-// Then convert and view:
-//   ./tracy-import-chrome trace.json output.tracy
-//   ./tracy-profiler output.tracy
 
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <deque>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <vector>
-#include <unordered_map>
 
-// ── Reuse Tracy's platform-specific primitives ──────────────────────────────
+// ── Reuse Tracy's thread-ID primitive ───────────────────────────────────────
+#include "../common/TracySystem.hpp"
+
+// ── Platform timing ─────────────────────────────────────────────────────────
+// We intentionally do NOT use tracy::Profiler::GetTime() because on x86 it
+// returns RDTSC ticks (not nanoseconds).  Calibrating those ticks requires
+// the full Profiler infrastructure and m_timerMul, which is only available
+// when TRACY_ENABLE is set and the profiler is connected.
+// Instead we use the same monotonic-clock fallback path Tracy itself uses
+// on the !TRACY_HW_TIMER / TRACY_TIMER_FALLBACK branch.
 
 #ifdef __linux__
 #  include <time.h>
-#  include <unistd.h>
-#  include <sys/syscall.h>
 #elif defined(_WIN32)
 #  include <windows.h>
-#  include <intrin.h>
 #elif defined(__APPLE__)
 #  include <mach/mach_time.h>
-#  include <pthread.h>
+#endif
+
+#if !defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__)
+#  include <chrono>
 #endif
 
 namespace chrome_export {
 
-// ── Timing ──────────────────────────────────────────────────────────────────
-// Matches Tracy's Profiler::GetTime() fallback path.
-// Returns nanoseconds from a monotonic clock.
+// ── Timing (nanoseconds, monotonic) ─────────────────────────────────────────
 
 static inline int64_t GetTimeNs()
 {
@@ -73,33 +73,8 @@ static inline int64_t GetTimeNs()
     if( tb.denom == 0 ) mach_timebase_info( &tb );
     return (int64_t)( mach_absolute_time() * tb.numer / tb.denom );
 #else
-    #include <chrono>
     return std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::high_resolution_clock::now().time_since_epoch() ).count();
-#endif
-}
-
-// Returns microseconds (Chrome JSON uses μs as timestamp unit)
-static inline double GetTimeUs()
-{
-    return GetTimeNs() / 1000.0;
-}
-
-// ── Thread ID ───────────────────────────────────────────────────────────────
-// Matches Tracy's detail::GetThreadHandleImpl()
-
-static inline uint32_t GetThreadId()
-{
-#if defined(_WIN32)
-    return (uint32_t)GetCurrentThreadId();
-#elif defined(__APPLE__)
-    uint64_t id;
-    pthread_threadid_np( pthread_self(), &id );
-    return (uint32_t)id;
-#elif defined(__linux__)
-    return (uint32_t)syscall( SYS_gettid );
-#else
-    return 0;
 #endif
 }
 
@@ -112,12 +87,34 @@ struct Event
     Type     type;
     uint32_t tid;
     int64_t  ts_ns;       // timestamp in nanoseconds, relative to epoch
-    // ZoneBegin fields
     const char* name;     // function/zone name (string literal, not owned)
     const char* file;     // __FILE__ (string literal)
     uint32_t    line;     // __LINE__
-    // PlotValue fields
-    double      value;
+    double      value;    // PlotValue payload
+};
+
+// ── Per-thread event buffer ─────────────────────────────────────────────────
+// Each thread writes into its own buffer with zero synchronization.
+// A mutex is taken only ONCE per thread lifetime (on first access) to
+// register the buffer with the central tracer.
+
+struct ThreadBuffer
+{
+    std::vector<Event> events;
+    std::deque<std::string> owned_strings;  // stable storage for dynamic names
+    uint32_t    tid;
+    std::string name;
+
+    ThreadBuffer() : tid( 0 ) { events.reserve( 64 * 1024 ); }
+
+    // Intern a string: copies into stable storage, returns pointer that
+    // remains valid for the lifetime of this ThreadBuffer.
+    const char* Intern( const char* s )
+    {
+        if( !s ) return nullptr;
+        owned_strings.emplace_back( s );
+        return owned_strings.back().c_str();
+    }
 };
 
 // ── Core tracer (singleton) ─────────────────────────────────────────────────
@@ -131,161 +128,192 @@ public:
         return s_instance;
     }
 
+    // Returns the calling thread's buffer.  Lock-free after the first call.
+    ThreadBuffer* GetThreadBuffer()
+    {
+        static thread_local ThreadBuffer* s_buf = nullptr;
+        if( !s_buf )
+        {
+            auto buf = std::make_unique<ThreadBuffer>();
+            buf->tid = tracy::GetThreadHandle();
+            s_buf = buf.get();
+            std::lock_guard<std::mutex> lock( m_registryMutex );
+            m_buffers.push_back( std::move( buf ) );
+        }
+        return s_buf;
+    }
+
     void RecordBegin( const char* name, const char* file, uint32_t line )
     {
+        auto* buf = GetThreadBuffer();
         Event e;
-        e.type = Event::ZoneBegin;
-        e.tid  = GetThreadId();
+        e.type  = Event::ZoneBegin;
+        e.tid   = buf->tid;
         e.ts_ns = GetTimeNs() - m_epochNs;
-        e.name = name;
-        e.file = file;
-        e.line = line;
+        e.name  = buf->Intern( name );
+        e.file  = file;   // __FILE__ is always a string literal
+        e.line  = line;
         e.value = 0;
-        Push( e );
+        buf->events.push_back( e );
     }
 
     void RecordEnd()
     {
+        auto* buf = GetThreadBuffer();
         Event e;
-        e.type = Event::ZoneEnd;
-        e.tid  = GetThreadId();
+        e.type  = Event::ZoneEnd;
+        e.tid   = buf->tid;
         e.ts_ns = GetTimeNs() - m_epochNs;
-        e.name = nullptr;
-        e.file = nullptr;
-        e.line = 0;
+        e.name  = nullptr;
+        e.file  = nullptr;
+        e.line  = 0;
         e.value = 0;
-        Push( e );
+        buf->events.push_back( e );
     }
 
     void RecordFrame( const char* name = nullptr )
     {
+        auto* buf = GetThreadBuffer();
         Event e;
-        e.type = Event::FrameMark;
-        e.tid  = GetThreadId();
+        e.type  = Event::FrameMark;
+        e.tid   = buf->tid;
         e.ts_ns = GetTimeNs() - m_epochNs;
-        e.name = name ? name : "frame";
-        e.file = nullptr;
-        e.line = 0;
+        e.name  = buf->Intern( name ? name : "frame" );
+        e.file  = nullptr;
+        e.line  = 0;
         e.value = 0;
-        Push( e );
+        buf->events.push_back( e );
     }
 
     void RecordPlot( const char* name, double value )
     {
+        auto* buf = GetThreadBuffer();
         Event e;
-        e.type = Event::PlotValue;
-        e.tid  = GetThreadId();
+        e.type  = Event::PlotValue;
+        e.tid   = buf->tid;
         e.ts_ns = GetTimeNs() - m_epochNs;
-        e.name = name;
-        e.file = nullptr;
-        e.line = 0;
+        e.name  = buf->Intern( name );
+        e.file  = nullptr;
+        e.line  = 0;
         e.value = value;
-        Push( e );
+        buf->events.push_back( e );
     }
 
     void SetThreadName( const char* name )
     {
-        uint32_t tid = GetThreadId();
-        std::lock_guard<std::mutex> lock( m_mutex );
-        m_threadNames[tid] = std::string( name );
+        auto* buf = GetThreadBuffer();
+        buf->name = name;
     }
 
-    // Save all recorded events as Chrome JSON.
-    // Call this once, typically at program exit.
-    bool Save( const char* path )
+    // Format a single event as Chrome JSON.  Returns the number of chars written.
+    // Buffer must be at least 512 bytes.
+    static int FormatEvent( const Event& e, char* buf, size_t bufSize )
     {
-        FILE* f = fopen( path, "w" );
-        if( !f ) return false;
-
-        fprintf( f, "{\"traceEvents\":[\n" );
-
-        bool first = true;
-
-        // Thread name metadata events
+        switch( e.type )
         {
-            std::lock_guard<std::mutex> lock( m_mutex );
-            for( auto& kv : m_threadNames )
-            {
-                if( !first ) fprintf( f, ",\n" );
-                first = false;
-                fprintf( f, "{\"ph\":\"M\",\"pid\":1,\"tid\":%u,\"name\":\"thread_name\",\"args\":{\"name\":\"%s\"}}",
-                    kv.first, kv.second.c_str() );
-            }
+        case Event::ZoneBegin:
+            if( e.file && e.line > 0 )
+                return snprintf( buf, bufSize,
+                    "{\"ph\":\"B\",\"pid\":1,\"tid\":%u,\"ts\":%lld.%03lld,\"name\":\"%s\",\"loc\":\"%s:%u\"}",
+                    e.tid, (long long)( e.ts_ns / 1000 ), (long long)( e.ts_ns % 1000 ),
+                    e.name ? e.name : "unknown", e.file, e.line );
+            else
+                return snprintf( buf, bufSize,
+                    "{\"ph\":\"B\",\"pid\":1,\"tid\":%u,\"ts\":%lld.%03lld,\"name\":\"%s\"}",
+                    e.tid, (long long)( e.ts_ns / 1000 ), (long long)( e.ts_ns % 1000 ),
+                    e.name ? e.name : "unknown" );
+        case Event::ZoneEnd:
+            return snprintf( buf, bufSize,
+                "{\"ph\":\"E\",\"pid\":1,\"tid\":%u,\"ts\":%lld.%03lld}",
+                e.tid, (long long)( e.ts_ns / 1000 ), (long long)( e.ts_ns % 1000 ) );
+        case Event::FrameMark:
+            return snprintf( buf, bufSize,
+                "{\"ph\":\"i\",\"pid\":1,\"tid\":%u,\"ts\":%lld.%03lld,\"name\":\"%s\",\"s\":\"g\"}",
+                e.tid, (long long)( e.ts_ns / 1000 ), (long long)( e.ts_ns % 1000 ), e.name );
+        case Event::PlotValue:
+            return snprintf( buf, bufSize,
+                "{\"ph\":\"C\",\"pid\":1,\"tid\":%u,\"ts\":%lld.%03lld,\"args\":{\"%s\":%.6f}}",
+                e.tid, (long long)( e.ts_ns / 1000 ), (long long)( e.ts_ns % 1000 ),
+                e.name, e.value );
         }
-
-        // All trace events
-        std::lock_guard<std::mutex> lock( m_mutex );
-        for( auto& e : m_events )
-        {
-            if( !first ) fprintf( f, ",\n" );
-            first = false;
-
-            switch( e.type )
-            {
-            case Event::ZoneBegin:
-                fprintf( f, "{\"ph\":\"B\",\"pid\":1,\"tid\":%u,\"ts\":%lld.%03lld,\"name\":\"%s\"",
-                    e.tid, (long long)(e.ts_ns / 1000), (long long)(e.ts_ns % 1000), e.name ? e.name : "unknown" );
-                if( e.file && e.line > 0 )
-                    fprintf( f, ",\"loc\":\"%s:%u\"", e.file, e.line );
-                fprintf( f, "}" );
-                break;
-
-            case Event::ZoneEnd:
-                fprintf( f, "{\"ph\":\"E\",\"pid\":1,\"tid\":%u,\"ts\":%lld.%03lld}",
-                    e.tid, (long long)(e.ts_ns / 1000), (long long)(e.ts_ns % 1000) );
-                break;
-
-            case Event::FrameMark:
-                fprintf( f, "{\"ph\":\"i\",\"pid\":1,\"tid\":%u,\"ts\":%lld.%03lld,\"name\":\"%s\",\"s\":\"g\"}",
-                    e.tid, (long long)(e.ts_ns / 1000), (long long)(e.ts_ns % 1000), e.name );
-                break;
-
-            case Event::PlotValue:
-                fprintf( f, "{\"ph\":\"C\",\"pid\":1,\"tid\":%u,\"ts\":%lld.%03lld,\"args\":{\"%s\":%.6f}}",
-                    e.tid, (long long)(e.ts_ns / 1000), (long long)(e.ts_ns % 1000), e.name, e.value );
-                break;
-            }
-        }
-
-        fprintf( f, "\n]}\n" );
-        fclose( f );
-        return true;
+        return 0;
     }
 
+    static int FormatThreadName( uint32_t tid, const char* name, char* buf, size_t bufSize )
+    {
+        return snprintf( buf, bufSize,
+            "{\"ph\":\"M\",\"pid\":1,\"tid\":%u,\"name\":\"thread_name\",\"args\":{\"name\":\"%s\"}}",
+            tid, name );
+    }
+
+    // Set a callback to receive each Chrome JSON event line.
+    // Callback signature: void(const char* json_line)
+    typedef void (*OutputCallback)( const char* );
+
+    void SetOutputCallback( OutputCallback cb )
+    {
+        m_outputCb = cb;
+    }
+
+    // Flush all buffered events through the output callback, one line per call.
+    // Call after all worker threads have joined.
+    void FlushToCallback()
+    {
+        if( !m_outputCb ) return;
+        char buf[512];
+
+        for( auto& tb : m_buffers )
+        {
+            if( !tb->name.empty() )
+            {
+                FormatThreadName( tb->tid, tb->name.c_str(), buf, sizeof( buf ) );
+                m_outputCb( buf );
+            }
+        }
+        for( auto& tb : m_buffers )
+        {
+            for( auto& e : tb->events )
+            {
+                FormatEvent( e, buf, sizeof( buf ) );
+                m_outputCb( buf );
+            }
+        }
+    }
+
+    // Call after all worker threads have joined (same as Save).
     void Clear()
     {
-        std::lock_guard<std::mutex> lock( m_mutex );
-        m_events.clear();
-        m_threadNames.clear();
+        for( auto& buf : m_buffers )
+        {
+            buf->events.clear();
+            buf->owned_strings.clear();
+            buf->name.clear();
+        }
     }
 
+    // Call after all worker threads have joined (same as Save).
     size_t EventCount()
     {
-        std::lock_guard<std::mutex> lock( m_mutex );
-        return m_events.size();
+        size_t count = 0;
+        for( auto& buf : m_buffers ) count += buf->events.size();
+        return count;
     }
 
 private:
-    ChromeTracer() : m_epochNs( GetTimeNs() )
+    ChromeTracer() : m_epochNs( GetTimeNs() ) {}
+
+    ~ChromeTracer()
     {
-        std::lock_guard<std::mutex> lock( m_mutex );
-        m_events.reserve( 1024 * 1024 ); // pre alloc 1M entries, avoid runtime realloc
+        if( m_outputCb ) FlushToCallback();
     }
 
-    void Push( const Event& e )
-    {
-        std::lock_guard<std::mutex> lock( m_mutex );
-        m_events.push_back( e );
-    }
-
-    int64_t m_epochNs;   // epoch: all timestamps are relative to this
-    std::mutex m_mutex;
-    std::vector<Event> m_events;
-    std::unordered_map<uint32_t, std::string> m_threadNames;
+    int64_t    m_epochNs;          // epoch: all timestamps relative to this
+    std::mutex m_registryMutex;    // protects m_buffers (taken once per thread)
+    std::vector<std::unique_ptr<ThreadBuffer>> m_buffers;
+    OutputCallback m_outputCb = nullptr;
 };
 
 // ── RAII Zone Guard ─────────────────────────────────────────────────────────
-// Mirrors Tracy's ScopedZone: constructor records Begin, destructor records End.
 
 class ChromeScopedZone
 {
@@ -299,7 +327,6 @@ public:
         ChromeTracer::Instance().RecordEnd();
     }
 
-    // Non-copyable
     ChromeScopedZone( const ChromeScopedZone& ) = delete;
     ChromeScopedZone& operator=( const ChromeScopedZone& ) = delete;
 };
@@ -307,38 +334,34 @@ public:
 } // namespace chrome_export
 
 // ── User-facing macros ──────────────────────────────────────────────────────
-// Pattern identical to Tracy's ZoneScoped / ZoneNamed macros.
 
 #define ChromeConcat2(a, b) a ## b
 #define ChromeConcat(a, b) ChromeConcat2(a, b)
 
-// Automatic: uses __FUNCTION__ as zone name
 #define ChromeZoneScoped \
     chrome_export::ChromeScopedZone ChromeConcat(__chrome_zone_, __LINE__) \
         ( __FUNCTION__, __FILE__, __LINE__ )
 
-// Custom name
 #define ChromeZoneNamed(name) \
     chrome_export::ChromeScopedZone ChromeConcat(__chrome_zone_, __LINE__) \
         ( name, __FILE__, __LINE__ )
 
-// Frame mark (maps to Tracy's FrameMark)
 #define ChromeFrameMark \
     chrome_export::ChromeTracer::Instance().RecordFrame( nullptr )
 
 #define ChromeFrameMarkNamed(name) \
     chrome_export::ChromeTracer::Instance().RecordFrame( name )
 
-// Plot value (maps to Tracy's TracyPlot)
 #define ChromePlot(name, val) \
     chrome_export::ChromeTracer::Instance().RecordPlot( name, (double)(val) )
 
-// Save to file
-#define ChromeTraceSave(path) \
-    chrome_export::ChromeTracer::Instance().Save( path )
-
-// Set thread name
 #define ChromeSetThreadName(name) \
     chrome_export::ChromeTracer::Instance().SetThreadName( name )
+
+#define ChromeSetOutputCallback(cb) \
+    chrome_export::ChromeTracer::Instance().SetOutputCallback( cb )
+
+#define ChromeFlushToCallback() \
+    chrome_export::ChromeTracer::Instance().FlushToCallback()
 
 #endif // __TRACY_CHROME_EXPORT_HPP__
