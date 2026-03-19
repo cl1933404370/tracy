@@ -108,7 +108,7 @@ void View::DrawCallstackTable( uint32_t callstack, bool globalEntriesButton )
     if( s_config.llm )
     {
         auto Attach = [&]() {
-            auto json = GetCallstackJson( cs );
+            auto json = GetCallstackJson( cs.data(), cs.size() );
             if( hasCrashed )
             {
                 json["crashed"] = true;
@@ -214,7 +214,7 @@ void View::DrawCallstackTable( uint32_t callstack, bool globalEntriesButton )
                 },
                 {
                     { "role", "user" },
-                    { "content", GetCallstackJson( cs )["frames"].dump() }
+                    { "content", GetCallstackJson( cs.data(), cs.size() )["frames"].dump() }
                 }
             };
 
@@ -628,9 +628,16 @@ void View::SmallCallstackButton( const char* name, uint32_t callstack, int& idx,
 void View::DrawCallstackCalls( uint32_t callstack, uint16_t limit ) const
 {
     const auto& csdata = m_worker.GetCallstack( callstack );
+    DrawCallstackCalls( csdata.data(), csdata.size(), limit );
+}
+
+void View::DrawCallstackCalls( const CallstackFrameId* data, size_t size, uint16_t limit ) const
+{
     bool first = true;
-    for( auto& v : csdata )
+    int i;
+    for( i = 0; i < size; i++ )
     {
+        const auto& v = data[i];
         const auto frameData = m_worker.GetCallstackFrame( v );
         if( !frameData ) break;
         const auto& frame = frameData->data[frameData->size - 1];
@@ -661,6 +668,29 @@ void View::DrawCallstackCalls( uint32_t callstack, uint16_t limit ) const
             ImGui::TextUnformatted( ShortenZoneName( ShortenName::Always, txt ) );
         }
         if( --limit == 0 ) break;
+    }
+    if( limit == 0 )
+    {
+        bool framesLeft = false;
+        while( ++i < size )
+        {
+            const auto& v = data[i];
+            const auto frameData = m_worker.GetCallstackFrame( v );
+            if( !frameData ) break;
+            const auto& frame = frameData->data[frameData->size - 1];
+            auto filename = m_worker.GetString( frame.file );
+            auto image = frameData->imageName.Active() ? m_worker.GetString( frameData->imageName ) : nullptr;
+            if( IsFrameExternal( filename, image ) ) continue;
+            framesLeft = true;
+            break;
+        }
+        if( framesLeft )
+        {
+            ImGui::SameLine();
+            TextDisabledUnformatted( ICON_FA_LEFT_LONG );
+            ImGui::SameLine();
+            TextDisabledUnformatted( ICON_FA_ELLIPSIS );
+        }
     }
 }
 
