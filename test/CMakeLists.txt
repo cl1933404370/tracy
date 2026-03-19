@@ -15,10 +15,15 @@ file(GENERATE OUTPUT .gitignore CONTENT "*")
 # a bit weird but works: include the client cmake config coming from top-level
 # cmake needs us to specify the build subfolder -> client/ this way we can
 # simply link the test executable against TracyClient
-add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/.. client/)
+# Guard: skip when built as part of the root project (TracyClient already exists)
+if(NOT TARGET TracyClient)
+    add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/.. client/)
+endif()
 
 add_executable(tracy-test test.cpp)
-target_link_options(tracy-test PRIVATE -rdynamic)
+if(NOT MSVC)
+    target_link_options(tracy-test PRIVATE -rdynamic)
+endif()
 target_link_libraries(tracy-test TracyClient)
 
 # Lua support (optional)

@@ -293,3 +293,18 @@ if(TRACY_CLIENT_PYTHON)
 
     add_subdirectory(python)
 endif()
+
+# ---------------------------------------------------------------------------
+# Optional: build tracy-capture (TracyServer) and tracy-test from this root
+# Enable with: -DTRACY_BUILD_CAPTURE=ON  -DTRACY_BUILD_TEST=ON
+# ---------------------------------------------------------------------------
+option(TRACY_BUILD_CAPTURE "Build tracy-capture and tracy-capture-daemon" OFF)
+option(TRACY_BUILD_TEST    "Build tracy-test example"                      OFF)
+
+if(TRACY_BUILD_CAPTURE)
+    add_subdirectory(capture)
+endif()
+
+if(TRACY_BUILD_TEST)
+    add_subdirectory(test)
+endif()

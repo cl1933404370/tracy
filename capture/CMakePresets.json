@@ -1,0 +1,56 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 16,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "capture-debug",
+      "displayName": "[Capture] Debug",
+      "description": "Build tracy-capture headless capture tool (Debug)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/../out/capture-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "NO_STATISTICS": "ON",
+        "NO_ISA_EXTENSIONS": "OFF"
+      }
+    },
+    {
+      "name": "capture-release",
+      "displayName": "[Capture] Release",
+      "description": "Build tracy-capture headless capture tool (Release)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/../out/capture-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "NO_STATISTICS": "ON",
+        "NO_ISA_EXTENSIONS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "capture-debug-build",
+      "displayName": "[Capture] Debug Build",
+      "configurePreset": "capture-debug"
+    },
+    {
+      "name": "capture-release-build",
+      "displayName": "[Capture] Release Build",
+      "configurePreset": "capture-release"
+    }
+  ]
+}

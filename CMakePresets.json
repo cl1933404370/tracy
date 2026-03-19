@@ -1,0 +1,98 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "client-debug",
+      "displayName": "[Client] Debug",
+      "description": "Build TracyClient instrumentation library (Debug)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/client-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_ENABLE": "ON"
+      }
+    },
+    {
+      "name": "client-release",
+      "displayName": "[Client] Release",
+      "description": "Build TracyClient instrumentation library (Release)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/client-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_ENABLE": "ON"
+      }
+    },
+    {
+      "name": "all-debug",
+      "displayName": "[All] Debug  (Client + Capture + Test)",
+      "description": "Build TracyClient, tracy-capture and tracy-test in one pass (Debug)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/all-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE":    "Debug",
+        "TRACY_ENABLE":        "ON",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST":    "ON",
+        "NO_STATISTICS":       "ON",
+        "NO_ISA_EXTENSIONS":   "OFF"
+      }
+    },
+    {
+      "name": "all-release",
+      "displayName": "[All] Release (Client + Capture + Test)",
+      "description": "Build TracyClient, tracy-capture and tracy-test in one pass (Release)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/all-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE":    "Release",
+        "TRACY_ENABLE":        "ON",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST":    "ON",
+        "NO_STATISTICS":       "ON",
+        "NO_ISA_EXTENSIONS":   "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "client-debug-build",
+      "displayName": "[Client] Debug Build",
+      "configurePreset": "client-debug"
+    },
+    {
+      "name": "client-release-build",
+      "displayName": "[Client] Release Build",
+      "configurePreset": "client-release"
+    },
+    {
+      "name": "all-debug-build",
+      "displayName": "[All] Debug Build",
+      "configurePreset": "all-debug"
+    },
+    {
+      "name": "all-release-build",
+      "displayName": "[All] Release Build",
+      "configurePreset": "all-release"
+    }
+  ]
+}
