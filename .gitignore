@@ -38,3 +38,5 @@ examples/ToyPathTracer/Windows/TestCpu
 examples/ToyPathTracer/Windows/x64
 *.user
 /out/all-release
+/.cpm-cache
+/out/profiler-release

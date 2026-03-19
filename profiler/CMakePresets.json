@@ -1,0 +1,63 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CPM_SOURCE_CACHE": "${sourceDir}/../.cpm-cache"
+      }
+    },
+    {
+      "name": "profiler-debug",
+      "displayName": "[Profiler] Debug",
+      "description": "Build tracy-profiler GUI application (Debug)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/../out/profiler-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE":  "Debug",
+        "NO_STATISTICS":     "OFF",
+        "NO_ISA_EXTENSIONS": "OFF"
+      }
+    },
+    {
+      "name": "profiler-release",
+      "displayName": "[Profiler] Release",
+      "description": "Build tracy-profiler GUI application (Release)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/../out/profiler-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE":  "Release",
+        "NO_STATISTICS":     "OFF",
+        "NO_ISA_EXTENSIONS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "profiler-debug-build",
+      "displayName": "[Profiler] Debug Build",
+      "configurePreset": "profiler-debug"
+    },
+    {
+      "name": "profiler-release-build",
+      "displayName": "[Profiler] Release Build",
+      "configurePreset": "profiler-release"
+    }
+  ]
+}

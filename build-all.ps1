@@ -1,5 +1,6 @@
 # Tracy build-all.ps1
 # Builds TracyClient + tracy-capture (TracyServer) + tracy-test in one pass.
+# Optionally builds the tracy-profiler GUI with -Profiler.
 #
 # How to run:
 #   Option A (recommended): In Visual Studio -> Tools -> Command Line -> Developer PowerShell
@@ -7,21 +8,22 @@
 #   Option B: In any PowerShell - the script locates MSVC x64 automatically.
 #
 # Usage:
-#   .\build-all.ps1              # Release (default)
-#   .\build-all.ps1 -Config Debug
-#   .\build-all.ps1 -Clean       # wipe binary dir before configure
+#   .\build-all.ps1                     # Release: Client + Capture + Test
+#   .\build-all.ps1 -Config Debug       # Debug build
+#   .\build-all.ps1 -Profiler           # also build the GUI profiler (tracy-profiler.exe)
+#   .\build-all.ps1 -Clean              # wipe binary dirs before configure
+#   .\build-all.ps1 -Profiler -Clean    # clean + full rebuild including GUI
 
 param(
     [ValidateSet("Debug", "Release")]
-    [string]$Config = "Release",
+    [string]$Config   = "Release",
+    [switch]$Profiler,
     [switch]$Clean
 )
 
 $ErrorActionPreference = "Stop"
-$root = $PSScriptRoot
-$preset = "all-$($Config.ToLower())"
-$buildPreset = "$preset-build"
-$binDir = "$root\out\all-$($Config.ToLower())"
+$root    = $PSScriptRoot
+$suffix  = $Config.ToLower()
 
 # ---------------------------------------------------------------------------
 # Locate vcvarsall.bat if not already in a VS Dev shell
@@ -35,7 +37,9 @@ if (-not $env:VSCMD_ARG_TGT_ARCH) {
 
     $vsRoot = $null
     if (Test-Path $vswhere) {
-        $vsRoot = (& $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2>$null | Select-Object -First 1)
+        $vsRoot = (& $vswhere -latest -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath 2>$null | Select-Object -First 1)
     }
     if (-not $vsRoot) {
         foreach ($c in @(
@@ -55,45 +59,71 @@ if (-not $env:VSCMD_ARG_TGT_ARCH) {
 }
 
 # ---------------------------------------------------------------------------
-# Optionally clean binary directory
+# Helper: run one cmake configure + build step (possibly through vcvarsall)
 # ---------------------------------------------------------------------------
-if ($Clean -and (Test-Path $binDir)) {
-    Write-Host "Cleaning $binDir ..." -ForegroundColor Yellow
-    Remove-Item -Recurse -Force $binDir
-}
+function Invoke-CmakeBuild {
+    param(
+        [string]$SourceDir,   # directory that contains CMakePresets.json
+        [string]$Preset,      # configure preset name
+        [string]$BinDir       # binary dir to clean (optional)
+    )
 
-# ---------------------------------------------------------------------------
-# Build cmake commands as a single cmd string so vcvarsall x64 is inherited
-# ---------------------------------------------------------------------------
-$cmakeConfigure = "cmake --preset $preset"
-$cmakeBuild     = "cmake --build --preset $buildPreset"
-
-if ($vcvarsall) {
-    # Run both cmake steps inside one cmd session so env from vcvarsall is shared
-    $cmdLine = "`"$vcvarsall`" x64 && cd /d `"$root`" && $cmakeConfigure && $cmakeBuild"
-    Write-Host "`n==> Running via cmd (MSVC x64 + cmake)..." -ForegroundColor Cyan
-    cmd /c $cmdLine
-    $exitCode = $LASTEXITCODE
-} else {
-    # Already in VS Dev shell - run cmake directly
-    Push-Location $root
-    Write-Host "`n==> $cmakeConfigure" -ForegroundColor Cyan
-    Invoke-Expression $cmakeConfigure; $exitCode = $LASTEXITCODE
-    if ($exitCode -eq 0) {
-        Write-Host "`n==> $cmakeBuild" -ForegroundColor Cyan
-        Invoke-Expression $cmakeBuild; $exitCode = $LASTEXITCODE
+    if ($Clean -and $BinDir -and (Test-Path $BinDir)) {
+        Write-Host "  Cleaning $BinDir ..." -ForegroundColor Yellow
+        Remove-Item -Recurse -Force $BinDir
     }
-    Pop-Location
+
+    $cfg  = "cmake --preset $Preset"
+    $bld  = "cmake --build --preset $($Preset)-build"
+
+    if ($vcvarsall) {
+        $cmd = "`"$vcvarsall`" x64 && cd /d `"$SourceDir`" && $cfg && $bld"
+        cmd /c $cmd
+    } else {
+        Push-Location $SourceDir
+        Invoke-Expression $cfg
+        if ($LASTEXITCODE -eq 0) { Invoke-Expression $bld }
+        Pop-Location
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "FAILED in $SourceDir (preset=$Preset)" -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
 }
 
-if ($exitCode -ne 0) {
-    Write-Host "`nBuild FAILED (exit $exitCode)" -ForegroundColor Red
-    exit $exitCode
+# ---------------------------------------------------------------------------
+# 1. Client + Capture + Test  (single cmake from root)
+# ---------------------------------------------------------------------------
+Write-Host "`n===  Client + Capture + Test  ===" -ForegroundColor Cyan
+Invoke-CmakeBuild `
+    -SourceDir $root `
+    -Preset    "all-$suffix" `
+    -BinDir    "$root\out\all-$suffix"
+
+# ---------------------------------------------------------------------------
+# 2. Profiler GUI  (separate cmake - needs cmake >= 3.25)
+# ---------------------------------------------------------------------------
+if ($Profiler) {
+    Write-Host "`n===  Profiler GUI  ===" -ForegroundColor Cyan
+    Invoke-CmakeBuild `
+        -SourceDir "$root\profiler" `
+        -Preset    "profiler-$suffix" `
+        -BinDir    "$root\out\profiler-$suffix"
 }
 
-Write-Host "`nAll done!  $binDir\" -ForegroundColor Green
-Write-Host "  TracyClient        (lib)  ->  $binDir\TracyClient.lib"
-Write-Host "  TracyServer        (lib)  ->  $binDir\capture\TracyServer.lib"
-Write-Host "  tracy-capture      (exe)  ->  $binDir\capture\tracy-capture.exe"
-Write-Host "  tracy-capture-daemon(exe) ->  $binDir\capture\tracy-capture-daemon.exe"
-Write-Host "  tracy-test         (exe)  ->  $binDir\test\tracy-test.exe"
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+$binAll      = "$root\out\all-$suffix"
+$binProfiler = "$root\out\profiler-$suffix"
+
+Write-Host "`nAll done!" -ForegroundColor Green
+Write-Host "  TracyClient.lib            ->  $binAll\TracyClient.lib"
+Write-Host "  TracyServer.lib            ->  $binAll\capture\TracyServer.lib"
+Write-Host "  tracy-capture.exe          ->  $binAll\capture\tracy-capture.exe"
+Write-Host "  tracy-capture-daemon.exe   ->  $binAll\capture\tracy-capture-daemon.exe"
+Write-Host "  tracy-test.exe             ->  $binAll\test\tracy-test.exe"
+if ($Profiler) {
+    Write-Host "  tracy-profiler.exe (GUI)   ->  $binProfiler\tracy-profiler.exe" -ForegroundColor Green
+}
