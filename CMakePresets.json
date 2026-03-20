@@ -47,8 +47,8 @@
     },
     {
       "name": "all-debug",
-      "displayName": "[All] Debug  (Client + Capture + Test)",
-      "description": "Build TracyClient, tracy-capture and tracy-test in one pass (Debug)",
+      "displayName": "[All] Debug  (Client + Capture + Test + Profiler)",
+      "description": "Build TracyClient, tracy-capture, tracy-test and tracy-profiler in one pass (Debug)",
       "inherits": "windows-base",
       "binaryDir": "${sourceDir}/out/all-debug",
       "cacheVariables": {
@@ -56,14 +56,15 @@
         "TRACY_ENABLE":        "ON",
         "TRACY_BUILD_CAPTURE": "ON",
         "TRACY_BUILD_TEST":    "ON",
-        "NO_STATISTICS":       "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "NO_STATISTICS":       "OFF",
         "NO_ISA_EXTENSIONS":   "OFF"
       }
     },
     {
       "name": "all-release",
-      "displayName": "[All] Release (Client + Capture + Test)",
-      "description": "Build TracyClient, tracy-capture and tracy-test in one pass (Release)",
+      "displayName": "[All] Release (Client + Capture + Test + Profiler)",
+      "description": "Build TracyClient, tracy-capture, tracy-test and tracy-profiler in one pass (Release)",
       "inherits": "windows-base",
       "binaryDir": "${sourceDir}/out/all-release",
       "cacheVariables": {
@@ -71,7 +72,8 @@
         "TRACY_ENABLE":        "ON",
         "TRACY_BUILD_CAPTURE": "ON",
         "TRACY_BUILD_TEST":    "ON",
-        "NO_STATISTICS":       "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "NO_STATISTICS":       "OFF",
         "NO_ISA_EXTENSIONS":   "OFF"
       }
     }

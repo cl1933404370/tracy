@@ -300,6 +300,7 @@ endif()
 # ---------------------------------------------------------------------------
 option(TRACY_BUILD_CAPTURE "Build tracy-capture and tracy-capture-daemon" OFF)
 option(TRACY_BUILD_TEST    "Build tracy-test example"                      OFF)
+option(TRACY_BUILD_PROFILER "Build tracy-profiler GUI"                     OFF)
 
 if(TRACY_BUILD_CAPTURE)
     add_subdirectory(capture)
@@ -307,4 +308,19 @@ endif()
 
 if(TRACY_BUILD_TEST)
     add_subdirectory(test)
+endif()
+
+if(TRACY_BUILD_PROFILER)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(TRACY_PROFILER_PRESET profiler-debug)
+    else()
+        set(TRACY_PROFILER_PRESET profiler-release)
+    endif()
+
+    add_custom_target(tracy-profiler ALL
+        COMMAND ${CMAKE_COMMAND} --preset ${TRACY_PROFILER_PRESET}
+        COMMAND ${CMAKE_COMMAND} --build --preset ${TRACY_PROFILER_PRESET}-build
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/profiler
+        USES_TERMINAL
+    )
 endif()

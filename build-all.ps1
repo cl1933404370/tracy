@@ -1,6 +1,5 @@
 # Tracy build-all.ps1
-# Builds TracyClient + tracy-capture (TracyServer) + tracy-test in one pass.
-# Optionally builds the tracy-profiler GUI with -Profiler.
+# Builds TracyClient + tracy-capture (TracyServer) + tracy-test + tracy-profiler in one pass.
 #
 # How to run:
 #   Option A (recommended): In Visual Studio -> Tools -> Command Line -> Developer PowerShell
@@ -8,11 +7,10 @@
 #   Option B: In any PowerShell - the script locates MSVC x64 automatically.
 #
 # Usage:
-#   .\build-all.ps1                     # Release: Client + Capture + Test
+#   .\build-all.ps1                     # Release: Client + Capture + Test + Profiler
 #   .\build-all.ps1 -Config Debug       # Debug build
-#   .\build-all.ps1 -Profiler           # also build the GUI profiler (tracy-profiler.exe)
 #   .\build-all.ps1 -Clean              # wipe binary dirs before configure
-#   .\build-all.ps1 -Profiler -Clean    # clean + full rebuild including GUI
+#   .\build-all.ps1 -Profiler           # legacy switch (no longer needed)
 
 param(
     [ValidateSet("Debug", "Release")]
@@ -24,6 +22,10 @@ param(
 $ErrorActionPreference = "Stop"
 $root    = $PSScriptRoot
 $suffix  = $Config.ToLower()
+
+if ($Profiler) {
+    Write-Host "-Profiler is now implicit in all-* presets; building profiler from root build." -ForegroundColor Yellow
+}
 
 # ---------------------------------------------------------------------------
 # Locate vcvarsall.bat if not already in a VS Dev shell
@@ -93,30 +95,18 @@ function Invoke-CmakeBuild {
 }
 
 # ---------------------------------------------------------------------------
-# 1. Client + Capture + Test  (single cmake from root)
+# 1. Client + Capture + Test + Profiler  (single cmake from root)
 # ---------------------------------------------------------------------------
-Write-Host "`n===  Client + Capture + Test  ===" -ForegroundColor Cyan
+Write-Host "`n===  Client + Capture + Test + Profiler  ===" -ForegroundColor Cyan
 Invoke-CmakeBuild `
     -SourceDir $root `
     -Preset    "all-$suffix" `
     -BinDir    "$root\out\all-$suffix"
 
 # ---------------------------------------------------------------------------
-# 2. Profiler GUI  (separate cmake - needs cmake >= 3.25)
-# ---------------------------------------------------------------------------
-if ($Profiler) {
-    Write-Host "`n===  Profiler GUI  ===" -ForegroundColor Cyan
-    Invoke-CmakeBuild `
-        -SourceDir "$root\profiler" `
-        -Preset    "profiler-$suffix" `
-        -BinDir    "$root\out\profiler-$suffix"
-}
-
-# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 $binAll      = "$root\out\all-$suffix"
-$binProfiler = "$root\out\profiler-$suffix"
 
 Write-Host "`nAll done!" -ForegroundColor Green
 Write-Host "  TracyClient.lib            ->  $binAll\TracyClient.lib"
@@ -124,6 +114,4 @@ Write-Host "  TracyServer.lib            ->  $binAll\capture\TracyServer.lib"
 Write-Host "  tracy-capture.exe          ->  $binAll\capture\tracy-capture.exe"
 Write-Host "  tracy-capture-daemon.exe   ->  $binAll\capture\tracy-capture-daemon.exe"
 Write-Host "  tracy-test.exe             ->  $binAll\test\tracy-test.exe"
-if ($Profiler) {
-    Write-Host "  tracy-profiler.exe (GUI)   ->  $binProfiler\tracy-profiler.exe" -ForegroundColor Green
-}
+Write-Host "  tracy-profiler.exe (GUI)   ->  $root\out\profiler-$suffix\tracy-profiler.exe" -ForegroundColor Green

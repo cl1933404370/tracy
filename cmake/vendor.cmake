@@ -1,6 +1,8 @@
 # Vendor Specific CMake
 # The Tracy project keeps most vendor source locally
 
+include_guard(GLOBAL)
+
 set (ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}/../")
 
 # Dependencies are taken from the system first and if not found, they are pulled with CPM and built from source
