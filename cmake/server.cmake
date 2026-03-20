@@ -1,5 +1,10 @@
 include_guard(GLOBAL)
 
+# Include guard: allow multiple sub-projects to include() this file safely
+if(TARGET TracyServer)
+    return()
+endif()
+
 set(TRACY_COMMON_DIR ${CMAKE_CURRENT_LIST_DIR}/../public/common)
 
 set(TRACY_COMMON_SOURCES

@@ -1,8 +1,8 @@
 {
-  "version": 3,
+  "version": 6,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 20,
+    "minor": 25,
     "patch": 0
   },
   "configurePresets": [
@@ -25,7 +25,7 @@
     },
     {
       "name": "client-debug",
-      "displayName": "[Client] Debug",
+      "displayName": "[Win][Client] Debug",
       "description": "Build TracyClient instrumentation library (Debug)",
       "inherits": "windows-base",
       "binaryDir": "${sourceDir}/out/client-debug",
@@ -36,7 +36,7 @@
     },
     {
       "name": "client-release",
-      "displayName": "[Client] Release",
+      "displayName": "[Win][Client] Release",
       "description": "Build TracyClient instrumentation library (Release)",
       "inherits": "windows-base",
       "binaryDir": "${sourceDir}/out/client-release",
@@ -47,8 +47,8 @@
     },
     {
       "name": "all-debug",
-      "displayName": "[All] Debug  (Client + Capture + Test + Profiler)",
-      "description": "Build TracyClient, tracy-capture, tracy-test and tracy-profiler in one pass (Debug)",
+      "displayName": "[Win][All] Debug  (Client + Capture + Test)",
+      "description": "Build TracyClient, tracy-capture and tracy-test in one pass (Debug)",
       "inherits": "windows-base",
       "binaryDir": "${sourceDir}/out/all-debug",
       "cacheVariables": {
@@ -63,8 +63,8 @@
     },
     {
       "name": "all-release",
-      "displayName": "[All] Release (Client + Capture + Test + Profiler)",
-      "description": "Build TracyClient, tracy-capture, tracy-test and tracy-profiler in one pass (Release)",
+      "displayName": "[Win][All] Release (Client + Capture + Test)",
+      "description": "Build TracyClient, tracy-capture and tracy-test in one pass (Release)",
       "inherits": "windows-base",
       "binaryDir": "${sourceDir}/out/all-release",
       "cacheVariables": {
@@ -76,28 +76,292 @@
         "NO_STATISTICS":       "OFF",
         "NO_ISA_EXTENSIONS":   "OFF"
       }
+    },
+
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CPM_SOURCE_CACHE": "${sourceDir}/.cpm-cache",
+        "TRACY_STATIC":     "ON",
+        "TRACY_ENABLE":     "ON",
+        "LEGACY":           "ON"
+      }
+    },
+
+    {
+      "name": "linux-client-debug",
+      "displayName": "[Linux][Client] Debug",
+      "description": "Build TracyClient static library only (Debug)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-client-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-client-release",
+      "displayName": "[Linux][Client] Release",
+      "description": "Build TracyClient static library only (Release)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-client-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+
+    {
+      "name": "linux-test-debug",
+      "displayName": "[Linux][Test] Debug",
+      "description": "Client .a + tracy-test (Debug)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-test-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_BUILD_TEST": "ON"
+      }
+    },
+    {
+      "name": "linux-test-release",
+      "displayName": "[Linux][Test] Release",
+      "description": "Client .a + tracy-test (Release)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-test-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_BUILD_TEST": "ON"
+      }
+    },
+
+    {
+      "name": "linux-all-debug",
+      "displayName": "[Linux][All] Debug",
+      "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge (Debug)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-all-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE":      "Debug",
+        "TRACY_BUILD_CAPTURE":   "ON",
+        "TRACY_BUILD_TEST":      "ON",
+        "TRACY_BUILD_PROFILER":  "ON",
+        "TRACY_BUILD_EXAMPLES":  "ON",
+        "TRACY_BUILD_IMPORT":    "ON",
+        "TRACY_BUILD_CSVEXPORT": "ON",
+        "TRACY_BUILD_MERGE":     "ON",
+        "NO_STATISTICS":         "OFF",
+        "NO_ISA_EXTENSIONS":     "OFF"
+      }
+    },
+    {
+      "name": "linux-all-release",
+      "displayName": "[Linux][All] Release",
+      "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge (Release)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-all-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE":      "Release",
+        "TRACY_BUILD_CAPTURE":   "ON",
+        "TRACY_BUILD_TEST":      "ON",
+        "TRACY_BUILD_PROFILER":  "ON",
+        "TRACY_BUILD_EXAMPLES":  "ON",
+        "TRACY_BUILD_IMPORT":    "ON",
+        "TRACY_BUILD_CSVEXPORT": "ON",
+        "TRACY_BUILD_MERGE":     "ON",
+        "NO_STATISTICS":         "OFF",
+        "NO_ISA_EXTENSIONS":     "OFF"
+      }
+    },
+
+    {
+      "name": "linux-tools-debug",
+      "displayName": "[Linux][Tools] Debug  (no GUI)",
+      "description": "Client .a + Capture + Test + Examples + Import (Debug). No Profiler GUI.",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-tools-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE":      "Debug",
+        "TRACY_BUILD_CAPTURE":   "ON",
+        "TRACY_BUILD_TEST":      "ON",
+        "TRACY_BUILD_PROFILER":  "OFF",
+        "TRACY_BUILD_EXAMPLES":  "ON",
+        "TRACY_BUILD_IMPORT":    "ON",
+        "TRACY_BUILD_CSVEXPORT": "OFF",
+        "TRACY_BUILD_MERGE":     "OFF",
+        "NO_STATISTICS":         "ON",
+        "NO_ISA_EXTENSIONS":     "OFF"
+      }
+    },
+    {
+      "name": "linux-tools-release",
+      "displayName": "[Linux][Tools] Release (no GUI)",
+      "description": "Client .a + Capture + Test + Examples + Import (Release). No Profiler GUI.",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-tools-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE":      "Release",
+        "TRACY_BUILD_CAPTURE":   "ON",
+        "TRACY_BUILD_TEST":      "ON",
+        "TRACY_BUILD_PROFILER":  "OFF",
+        "TRACY_BUILD_EXAMPLES":  "ON",
+        "TRACY_BUILD_IMPORT":    "ON",
+        "TRACY_BUILD_CSVEXPORT": "OFF",
+        "TRACY_BUILD_MERGE":     "OFF",
+        "NO_STATISTICS":         "ON",
+        "NO_ISA_EXTENSIONS":     "OFF"
+      }
+    },
+
+    {
+      "name": "linux-package-release",
+      "displayName": "[Linux][Package] Release",
+      "description": "Release build for packaging/install (Client .a + Capture + Import)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-package-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE":      "Release",
+        "CMAKE_INSTALL_PREFIX":  "${sourceDir}/out/install",
+        "TRACY_BUILD_CAPTURE":   "ON",
+        "TRACY_BUILD_TEST":      "OFF",
+        "TRACY_BUILD_PROFILER":  "OFF",
+        "TRACY_BUILD_EXAMPLES":  "OFF",
+        "TRACY_BUILD_IMPORT":    "ON",
+        "TRACY_BUILD_CSVEXPORT": "OFF",
+        "TRACY_BUILD_MERGE":     "OFF",
+        "NO_STATISTICS":         "ON",
+        "NO_ISA_EXTENSIONS":     "OFF"
+      }
     }
   ],
   "buildPresets": [
     {
       "name": "client-debug-build",
-      "displayName": "[Client] Debug Build",
+      "displayName": "[Win][Client] Debug Build",
       "configurePreset": "client-debug"
     },
     {
       "name": "client-release-build",
-      "displayName": "[Client] Release Build",
+      "displayName": "[Win][Client] Release Build",
       "configurePreset": "client-release"
     },
     {
       "name": "all-debug-build",
-      "displayName": "[All] Debug Build",
+      "displayName": "[Win][All] Debug Build",
       "configurePreset": "all-debug"
     },
     {
       "name": "all-release-build",
-      "displayName": "[All] Release Build",
+      "displayName": "[Win][All] Release Build",
       "configurePreset": "all-release"
+    },
+
+    {
+      "name": "linux-client-debug-build",
+      "displayName": "[Linux][Client] Debug Build",
+      "configurePreset": "linux-client-debug"
+    },
+    {
+      "name": "linux-client-release-build",
+      "displayName": "[Linux][Client] Release Build",
+      "configurePreset": "linux-client-release"
+    },
+    {
+      "name": "linux-test-debug-build",
+      "displayName": "[Linux][Test] Debug Build",
+      "configurePreset": "linux-test-debug"
+    },
+    {
+      "name": "linux-test-release-build",
+      "displayName": "[Linux][Test] Release Build",
+      "configurePreset": "linux-test-release"
+    },
+    {
+      "name": "linux-all-debug-build",
+      "displayName": "[Linux][All] Debug Build",
+      "configurePreset": "linux-all-debug"
+    },
+    {
+      "name": "linux-all-release-build",
+      "displayName": "[Linux][All] Release Build",
+      "configurePreset": "linux-all-release"
+    },
+    {
+      "name": "linux-tools-debug-build",
+      "displayName": "[Linux][Tools] Debug Build",
+      "configurePreset": "linux-tools-debug"
+    },
+    {
+      "name": "linux-tools-release-build",
+      "displayName": "[Linux][Tools] Release Build",
+      "configurePreset": "linux-tools-release"
+    },
+    {
+      "name": "linux-package-release-build",
+      "displayName": "[Linux][Package] Release Build",
+      "configurePreset": "linux-package-release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "linux-test-debug-run",
+      "displayName": "[Linux][Test] Debug Run",
+      "configurePreset": "linux-test-debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-test-release-run",
+      "displayName": "[Linux][Test] Release Run",
+      "configurePreset": "linux-test-release",
+      "output": { "outputOnFailure": true }
+    }
+  ],
+  "packagePresets": [
+    {
+      "name": "linux-package-release-pkg",
+      "displayName": "[Linux] Release TGZ Package",
+      "configurePreset": "linux-package-release",
+      "generators": ["TGZ"]
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "linux-dev",
+      "displayName": "Dev: configure → build → test (Debug)",
+      "steps": [
+        { "type": "configure", "name": "linux-tools-debug"       },
+        { "type": "build",     "name": "linux-tools-debug-build" }
+      ]
+    },
+    {
+      "name": "linux-release",
+      "displayName": "Release: configure → build (Release)",
+      "steps": [
+        { "type": "configure", "name": "linux-tools-release"       },
+        { "type": "build",     "name": "linux-tools-release-build" }
+      ]
+    },
+    {
+      "name": "linux-test",
+      "displayName": "Test: configure → build → ctest (Debug)",
+      "steps": [
+        { "type": "configure", "name": "linux-test-debug"       },
+        { "type": "build",     "name": "linux-test-debug-build" },
+        { "type": "test",      "name": "linux-test-debug-run"   }
+      ]
+    },
+    {
+      "name": "linux-package",
+      "displayName": "Package: configure → build → CPack TGZ",
+      "steps": [
+        { "type": "configure", "name": "linux-package-release"       },
+        { "type": "build",     "name": "linux-package-release-build" },
+        { "type": "package",   "name": "linux-package-release-pkg"   }
+      ]
     }
   ]
 }

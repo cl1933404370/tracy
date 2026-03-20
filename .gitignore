@@ -37,7 +37,5 @@ profiler/build/wasm/embed.tracy
 examples/ToyPathTracer/Windows/TestCpu
 examples/ToyPathTracer/Windows/x64
 *.user
-/out/all-release
+/out/**
 /.cpm-cache
-/out/profiler-release
-/out/all-debug

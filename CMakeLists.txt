@@ -295,12 +295,24 @@ if(TRACY_CLIENT_PYTHON)
 endif()
 
 # ---------------------------------------------------------------------------
-# Optional: build tracy-capture (TracyServer) and tracy-test from this root
-# Enable with: -DTRACY_BUILD_CAPTURE=ON  -DTRACY_BUILD_TEST=ON
+# Optional sub-projects built from this root.
+# The client library (TracyClient .a/.lib) is ALWAYS built.
+# Enable individual tools with:
+#   -DTRACY_BUILD_CAPTURE=ON   tracy-capture / tracy-capture-daemon
+#   -DTRACY_BUILD_TEST=ON      tracy-test
+#   -DTRACY_BUILD_PROFILER=ON  tracy-profiler  (GUI, requires cmake ≥ 3.25)
+#   -DTRACY_BUILD_EXAMPLES=ON  example programs (ChromeExport, etc.)
+#   -DTRACY_BUILD_IMPORT=ON    tracy-import-chrome / tracy-import-fuchsia
+#   -DTRACY_BUILD_CSVEXPORT=ON tracy-csvexport
+#   -DTRACY_BUILD_MERGE=ON     tracy-merge
 # ---------------------------------------------------------------------------
-option(TRACY_BUILD_CAPTURE "Build tracy-capture and tracy-capture-daemon" OFF)
-option(TRACY_BUILD_TEST    "Build tracy-test example"                      OFF)
-option(TRACY_BUILD_PROFILER "Build tracy-profiler GUI"                     OFF)
+option(TRACY_BUILD_CAPTURE  "Build tracy-capture and tracy-capture-daemon"   OFF)
+option(TRACY_BUILD_TEST     "Build tracy-test example"                       OFF)
+option(TRACY_BUILD_PROFILER "Build tracy-profiler GUI"                       OFF)
+option(TRACY_BUILD_EXAMPLES "Build example programs"                         OFF)
+option(TRACY_BUILD_IMPORT   "Build tracy-import-chrome / tracy-import-fuchsia" OFF)
+option(TRACY_BUILD_CSVEXPORT "Build tracy-csvexport"                         OFF)
+option(TRACY_BUILD_MERGE    "Build tracy-merge"                              OFF)
 
 if(TRACY_BUILD_CAPTURE)
     add_subdirectory(capture)
@@ -311,16 +323,38 @@ if(TRACY_BUILD_TEST)
 endif()
 
 if(TRACY_BUILD_PROFILER)
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(TRACY_PROFILER_PRESET profiler-debug)
-    else()
-        set(TRACY_PROFILER_PRESET profiler-release)
-    endif()
+    if(WIN32)
+        # On Windows the profiler is built via its own presets (MSVC toolchain).
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            set(TRACY_PROFILER_PRESET profiler-debug)
+        else()
+            set(TRACY_PROFILER_PRESET profiler-release)
+        endif()
 
-    add_custom_target(tracy-profiler ALL
-        COMMAND ${CMAKE_COMMAND} --preset ${TRACY_PROFILER_PRESET}
-        COMMAND ${CMAKE_COMMAND} --build --preset ${TRACY_PROFILER_PRESET}-build
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/profiler
-        USES_TERMINAL
-    )
+        add_custom_target(tracy-profiler ALL
+            COMMAND ${CMAKE_COMMAND} --preset ${TRACY_PROFILER_PRESET}
+            COMMAND ${CMAKE_COMMAND} --build --preset ${TRACY_PROFILER_PRESET}-build
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/profiler
+            USES_TERMINAL
+        )
+    else()
+        # On Linux/macOS the profiler is built as a regular subdirectory.
+        add_subdirectory(profiler)
+    endif()
+endif()
+
+if(TRACY_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
+if(TRACY_BUILD_IMPORT)
+    add_subdirectory(import)
+endif()
+
+if(TRACY_BUILD_CSVEXPORT)
+    add_subdirectory(csvexport)
+endif()
+
+if(TRACY_BUILD_MERGE)
+    add_subdirectory(merge)
 endif()

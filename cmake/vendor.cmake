@@ -3,6 +3,19 @@
 
 include_guard(GLOBAL)
 
+# Include guard: allow multiple sub-projects to include() this file safely.
+# Uses a GLOBAL PROPERTY (not CACHE) so it resets on each fresh configure but
+# still prevents duplicate target definitions within a single configure run.
+# Re-load FindPkgConfig + CPM.cmake before returning so that PKG_CONFIG_VERSION
+# and CPMAddPackage are available in every subdirectory scope.
+get_property(_tracy_vendor_done GLOBAL PROPERTY _TRACY_VENDOR_INCLUDED)
+if(_tracy_vendor_done)
+    include(FindPkgConfig)
+    include(${CMAKE_CURRENT_LIST_DIR}/CPM.cmake)
+    return()
+endif()
+set_property(GLOBAL PROPERTY _TRACY_VENDOR_INCLUDED TRUE)
+
 set (ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}/../")
 
 # Dependencies are taken from the system first and if not found, they are pulled with CPM and built from source
@@ -303,3 +316,12 @@ if(NOT EMSCRIPTEN)
     endif()
 
 endif()
+
+# Cache *_SOURCE_DIR variables so they are available to subdirectories that
+# hit the include-guard early-return path above.  These point to stable paths
+# inside CPM_SOURCE_CACHE and remain valid across reconfigures.
+foreach(_pkg ImGui md4c tidy wayland-protocols)
+    if(DEFINED ${_pkg}_SOURCE_DIR)
+        set(${_pkg}_SOURCE_DIR "${${_pkg}_SOURCE_DIR}" CACHE INTERNAL "")
+    endif()
+endforeach()
