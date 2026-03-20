@@ -40,3 +40,4 @@ examples/ToyPathTracer/Windows/x64
 /out/all-release
 /.cpm-cache
 /out/profiler-release
+/out/all-debug
