@@ -286,6 +286,7 @@ private:
     void DrawCompare();
     void DrawCallstackWindow();
     void DrawCallstackTable( uint32_t callstack, bool globalEntriesButton );
+    void DrawCallstackTable( const CallstackFrameId* data, size_t size, bool globalEntriesButton, bool hasCrashed = false, int64_t callstack = -1 );
     void DrawMemoryAllocWindow();
     void DrawInfo();
     void DrawTextEditor();
@@ -322,6 +323,8 @@ private:
     unordered_flat_map<uint64_t, CallstackFrameTree> GetParentsCallstackFrameTreeBottomUp( const unordered_flat_map<uint32_t, uint32_t>& stacks, bool group ) const;
     unordered_flat_map<uint64_t, CallstackFrameTree> GetParentsCallstackFrameTreeTopDown( const unordered_flat_map<uint32_t, uint32_t>& stacks, bool group ) const;
     void DrawParentsFrameTreeLevel( const unordered_flat_map<uint64_t, CallstackFrameTree>& tree, int& idx );
+
+    std::vector<CallstackFrameId> ReconstructZoneCallstack( const ZoneEvent& ev ) const;
 
     void DrawInfoWindow();
     void DrawZoneInfoWindow();

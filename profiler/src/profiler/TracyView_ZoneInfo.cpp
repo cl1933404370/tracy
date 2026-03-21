@@ -1089,6 +1089,21 @@ void View::DrawZoneInfoWindow()
                 ImGui::TreePop();
             }
         }
+        else
+        {
+            auto cs = ReconstructZoneCallstack( ev );
+            if( !cs.empty() )
+            {
+                auto expand = ImGui::TreeNode( "Call stack" );
+                ImGui::SameLine();
+                TextDisabledUnformatted( ICON_FA_WAND_SPARKLES );
+                if( expand )
+                {
+                    DrawCallstackTable( cs.data(), cs.size(), false );
+                    ImGui::TreePop();
+                }
+            }
+        }
 
         ImGui::EndChild();
     }
@@ -1888,6 +1903,7 @@ void View::ZoneTooltip( const ZoneEvent& ev )
             TextFocused( "Running state regions:", RealToString( cnt ) );
         }
     }
+    bool callstackDone = false;
     if( m_worker.HasZoneExtra( ev ) )
     {
         auto& extra = m_worker.GetZoneExtra( ev );
@@ -1895,7 +1911,24 @@ void View::ZoneTooltip( const ZoneEvent& ev )
         {
             ImGui::Separator();
             DrawCallstackCalls( extra.callstack.Val(), 6 );
+            callstackDone = true;
         }
+    }
+    if( !callstackDone )
+    {
+        auto cs = ReconstructZoneCallstack( ev );
+        if( !cs.empty() )
+        {
+            ImGui::Separator();
+            TextDisabledUnformatted( ICON_FA_WAND_SPARKLES );
+            ImGui::SameLine();
+            DrawCallstackCalls( cs.data(), cs.size(), 6 );
+        }
+    }
+
+    if( m_worker.HasZoneExtra( ev ) )
+    {
+        auto& extra = m_worker.GetZoneExtra( ev );
         if( extra.text.Active() )
         {
             ImGui::Separator();
