@@ -323,24 +323,10 @@ if(TRACY_BUILD_TEST)
 endif()
 
 if(TRACY_BUILD_PROFILER)
-    if(WIN32)
-        # On Windows the profiler is built via its own presets (MSVC toolchain).
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            set(TRACY_PROFILER_PRESET profiler-debug)
-        else()
-            set(TRACY_PROFILER_PRESET profiler-release)
-        endif()
-
-        add_custom_target(tracy-profiler ALL
-            COMMAND ${CMAKE_COMMAND} --preset ${TRACY_PROFILER_PRESET}
-            COMMAND ${CMAKE_COMMAND} --build --preset ${TRACY_PROFILER_PRESET}-build
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/profiler
-            USES_TERMINAL
-        )
-    else()
-        # On Linux/macOS the profiler is built as a regular subdirectory.
-        add_subdirectory(profiler)
+    if(CMAKE_VERSION VERSION_LESS "3.25")
+        message(FATAL_ERROR "TRACY_BUILD_PROFILER requires CMake 3.25 or newer")
     endif()
+    add_subdirectory(profiler)
 endif()
 
 if(TRACY_BUILD_EXAMPLES)
