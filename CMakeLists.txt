@@ -344,3 +344,11 @@ endif()
 if(TRACY_BUILD_MERGE)
     add_subdirectory(merge)
 endif()
+
+# Keep CPack at the very end so third-party dependencies can't overwrite
+# top-level package metadata used by CMake package presets.
+set(CPACK_PACKAGE_NAME "Tracy")
+set(CPACK_PACKAGE_VENDOR "Tracy")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+include(CPack)
