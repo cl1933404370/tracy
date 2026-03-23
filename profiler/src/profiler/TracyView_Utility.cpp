@@ -998,6 +998,22 @@ nlohmann::json View::GetCallstackJson( const CallstackFrameId* data, size_t size
     return json;
 }
 
+static size_t GetNumLocalFrames( const Worker& m_worker, const CallstackFrameId* data, size_t size )
+{
+    size_t local = 0;
+    auto end = data + size;
+    while( data < end )
+    {
+        const auto frameData = m_worker.GetCallstackFrame( *data++ );
+        if( !frameData ) continue;
+        const auto& frame = frameData->data[frameData->size - 1];
+        auto filename = m_worker.GetString( frame.file );
+        auto image = frameData->imageName.Active() ? m_worker.GetString( frameData->imageName ) : nullptr;
+        if( !IsFrameExternal( filename, image ) ) local++;
+    }
+    return local;
+}
+
 std::vector<CallstackFrameId> View::ReconstructZoneCallstack( const ZoneEvent& ev ) const
 {
     constexpr int SampleLimit = 10000;
@@ -1036,19 +1052,8 @@ std::vector<CallstackFrameId> View::ReconstructZoneCallstack( const ZoneEvent& e
         size_t max = 0;
         for( auto& stack : root.second )
         {
-            size_t local = 0;
             auto& cs = m_worker.GetCallstack( stack );
-            auto sz = cs.size();
-            for( int i = 0; i < sz; i++ )
-            {
-                const auto& v = cs[i];
-                const auto frameData = m_worker.GetCallstackFrame( v );
-                if( !frameData ) break;
-                const auto& frame = frameData->data[frameData->size - 1];
-                auto filename = m_worker.GetString( frame.file );
-                auto image = frameData->imageName.Active() ? m_worker.GetString( frameData->imageName ) : nullptr;
-                if( !IsFrameExternal( filename, image ) ) local++;
-            }
+            const auto local = GetNumLocalFrames( m_worker, cs.data(), cs.size() );
             max = std::max( max, local );
         }
 
@@ -1062,13 +1067,58 @@ std::vector<CallstackFrameId> View::ReconstructZoneCallstack( const ZoneEvent& e
     roots.clear();
 
     auto sit = stacks.begin();
+    while( sit != stacks.end() )
+    {
+        auto& scs = m_worker.GetCallstack( *sit );
+        if( GetNumLocalFrames( m_worker, scs.data(), scs.size() ) > 0 ) break;
+        ++sit;
+    }
+    if( sit == stacks.end() ) return ret;
+
     auto& scs = m_worker.GetCallstack( *sit );
     for( auto& v : scs ) ret.emplace_back( v );
     while( ++sit != stacks.end() )
     {
         auto& cs = m_worker.GetCallstack( *sit );
+        if( GetNumLocalFrames( m_worker, cs.data(), cs.size() ) == 0 ) continue;
+
         auto sz = cs.size();
         if( ret.size() > sz ) ret.erase( ret.begin(), ret.end() - sz );
+        if( ret.size() == 0 ) return ret;
+
+        auto offset = std::max( size_t( 0 ), sz - ret.size() );
+        size_t match = 0;
+        for( int i = ret.size() - 1; i >= 0; i-- )
+        {
+            if( ret[i] == cs[i + offset] )
+            {
+                match++;
+            }
+            else
+            {
+                auto fd1 = m_worker.GetCallstackFrame( ret[i] );
+                auto fd2 = m_worker.GetCallstackFrame( cs[i + offset] );
+                if( fd1 && fd2 )
+                {
+                    auto& f1 = fd1->data[fd1->size - 1];
+                    auto& f2 = fd2->data[fd2->size - 1];
+                    auto name1 = m_worker.GetString( f1.name );
+                    auto name2 = m_worker.GetString( f2.name );
+                    if( name1 == name2 || strcmp( name1, name2 ) == 0 )
+                    {
+                        auto file1 = m_worker.GetString( f1.file );
+                        auto file2 = m_worker.GetString( f2.file );
+                        if( file1 == file2 || strcmp( file1, file2 ) == 0 )
+                        {
+                            match++;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+
+        if( match != ret.size() ) ret.erase( ret.begin(), ret.end() - match );
     }
 
     return ret;
