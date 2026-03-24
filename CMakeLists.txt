@@ -193,7 +193,7 @@ set(tracy_includes
     ${TRACY_PUBLIC_DIR}/tracy/TracyOpenCL.hpp
     ${TRACY_PUBLIC_DIR}/tracy/TracyOpenGL.hpp
     ${TRACY_PUBLIC_DIR}/tracy/TracyVulkan.hpp
-    ${TRACY_PUBLIC_DIR}/tracy/TracyChromeExport.hpp)
+    ${TRACY_PUBLIC_DIR}/tracy/TracyHcomm.hpp)
 
 set(client_includes
     ${TRACY_PUBLIC_DIR}/client/tracy_concurrentqueue.h

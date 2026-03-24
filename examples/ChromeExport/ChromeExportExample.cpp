@@ -6,7 +6,7 @@
 //   tracy-import-chrome trace.json trace.tracy
 //   tracy-profiler trace.tracy
 
-#include <tracy/TracyChromeExport.hpp>
+#include <tracy/TracyHcomm.hpp>
 #include <cstdio>
 #include <cmath>
 #include <thread>

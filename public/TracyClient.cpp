@@ -31,6 +31,7 @@
 #include "client/TracyAlloc.cpp"
 #include "client/TracyOverride.cpp"
 #include "client/TracyKCore.cpp"
+#include "client/TracyChromeExport.cpp"
 
 #ifdef TRACY_ROCPROF
 #  include "client/TracyRocprof.cpp"

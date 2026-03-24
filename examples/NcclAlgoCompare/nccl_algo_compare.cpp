@@ -7,11 +7,11 @@
 //        tracy-import-chrome trace.json trace.tracy && tracy-profiler trace.tracy
 //
 // 后续在真实 MPICH / NCCL 源码中：
-//   1. #include "tracy/TracyChromeExport.hpp"
+//   1. #include "tracy/TracyHcomm.hpp"
 //   2. 在关键函数入口加 ChromeZoneScoped / ChromeZoneNamed("xxx")
 //   3. 链接 TracySystem.cpp，Makefile 加一行 SRCS 即可
 
-#include "tracy/TracyChromeExport.hpp"
+#include "tracy/TracyHcomm.hpp"
 
 #include <cstdio>
 #include <cstring>

@@ -65,6 +65,7 @@
                 "TRACY_BUILD_CAPTURE": "ON",
                 "TRACY_BUILD_TEST": "ON",
                 "TRACY_BUILD_PROFILER": "ON",
+                "TRACY_BUILD_EXAMPLES": "ON",
                 "NO_STATISTICS": "OFF",
                 "NO_ISA_EXTENSIONS": "OFF"
             }
@@ -81,6 +82,7 @@
                 "TRACY_BUILD_CAPTURE": "ON",
                 "TRACY_BUILD_TEST": "ON",
                 "TRACY_BUILD_PROFILER": "ON",
+                "TRACY_BUILD_EXAMPLES": "ON",
                 "NO_STATISTICS": "OFF",
                 "NO_ISA_EXTENSIONS": "OFF"
             }

@@ -10,7 +10,7 @@
 #   1. 把 TRACY_ROOT 指向 tracy 的 public/ 目录
 #   2. 把 TRACY_SYSTEM_SRC 加到你的 Makefile 的 SRCS 里
 #   3. CXXFLAGS 加 -I$(TRACY_ROOT)
-#   4. 在你想要 instrument 的 .cpp 里 #include "tracy/TracyChromeExport.hpp"
+#   4. 在你想要 instrument 的 .cpp 里 #include "tracy/TracyHcomm.hpp"
 #
 # 示例: 在 MPICH 的 src/mpi/coll/allreduce/ 里:
 #   CXXFLAGS += -I/path/to/tracy/public
