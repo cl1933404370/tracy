@@ -9,9 +9,12 @@ find_package(OpenCL REQUIRED)
 
 add_executable(OpenCLVectorAdd OpenCLVectorAdd.cpp)
 
-add_library(TracyClient STATIC ../../public/TracyClient.cpp
-                               ../../public/tracy/TracyOpenCL.hpp)
-target_include_directories(TracyClient PUBLIC ../../public/tracy)
-target_compile_definitions(TracyClient PUBLIC TRACY_ENABLE=1)
+# Link against the central Tracy client library provided by the top-level project
+target_link_libraries(OpenCLVectorAdd PUBLIC
+        OpenCL::OpenCL
+        Tracy::TracyClient
+        ${CMAKE_DL_LIBS}
+        Threads::Threads)
 
-target_link_libraries(OpenCLVectorAdd PUBLIC OpenCL::OpenCL TracyClient ${CMAKE_DL_LIBS} Threads::Threads)
+# Allow including <Tracy.hpp>
+target_include_directories(OpenCLVectorAdd PRIVATE ../../public/tracy)

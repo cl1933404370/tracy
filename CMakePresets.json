@@ -10,25 +10,26 @@
             "name": "windows-base",
             "hidden": true,
             "generator": "Ninja",
-                  "toolset": {
+          "toolset": {
             "value": "host=x64",
             "strategy": "external"
-        },
+          },
             "architecture": {
                 "value": "x64",
                 "strategy": "external"
             },
-                  "environment": {
-        "VSCMD_ARG_HOST_ARCH": "x64",
-        "VSCMD_ARG_TGT_ARCH": "x64"
-      },
+          "environment": {
+            "VSCMD_ARG_HOST_ARCH": "x64",
+            "VSCMD_ARG_TGT_ARCH": "x64"
+          },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
                 "rhs": "Windows"
             },
             "cacheVariables": {
-                "CPM_SOURCE_CACHE": "${sourceDir}/.cpm-cache"
+              "CPM_SOURCE_CACHE": "${sourceDir}/.cpm-cache",
+              "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
             }
         },
         {
@@ -98,12 +99,27 @@
             },
             "cacheVariables": {
                 "CPM_SOURCE_CACHE": "${sourceDir}/.cpm-cache",
+              "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
                 "TRACY_STATIC": "ON",
                 "TRACY_ENABLE": "ON",
                 "LEGACY": "ON"
             }
         },
         {
+          "name": "wsl2-base",
+          "hidden": true,
+          "inherits": "linux-base",
+          "condition": {
+            "type": "notEquals",
+            "lhs": "$env{WSL_INTEROP}",
+            "rhs": ""
+          },
+          "cacheVariables": {
+            "TRACY_TIMER_FALLBACK": "ON",
+            "TRACY_DISALLOW_HW_TIMER": "ON"
+          }
+        },
+      {
             "name": "linux-client-debug",
             "displayName": "[Linux][Client] Debug",
             "description": "Build TracyClient + tracy-test + tracy-profiler (Debug)",
@@ -121,6 +137,25 @@
                 "TRACY_BUILD_CSVEXPORT": "OFF",
                 "TRACY_BUILD_MERGE": "OFF"
             }
+      },
+      {
+        "name": "wsl2-client-debug",
+        "displayName": "[WSL2][Client] Debug",
+        "description": "Build TracyClient for WSL2 using timer fallback (Debug)",
+        "inherits": "wsl2-base",
+        "binaryDir": "${sourceDir}/out/wsl2-client-debug",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Debug",
+          "NO_STATISTICS": "OFF",
+          "NO_ISA_EXTENSIONS": "OFF",
+          "TRACY_BUILD_CAPTURE": "OFF",
+          "TRACY_BUILD_TEST": "OFF",
+          "TRACY_BUILD_PROFILER": "OFF",
+          "TRACY_BUILD_EXAMPLES": "OFF",
+          "TRACY_BUILD_IMPORT": "OFF",
+          "TRACY_BUILD_CSVEXPORT": "OFF",
+          "TRACY_BUILD_MERGE": "OFF"
+            }
         },
         {
             "name": "linux-client-release",
@@ -133,6 +168,16 @@
             }
         },
         {
+          "name": "wsl2-client-release",
+          "displayName": "[WSL2][Client] Release",
+          "description": "Build TracyClient static library for WSL2 using timer fallback (Release)",
+          "inherits": "wsl2-base",
+          "binaryDir": "${sourceDir}/out/wsl2-client-release",
+          "cacheVariables": {
+            "CMAKE_BUILD_TYPE": "Release"
+          }
+        },
+      {
             "name": "linux-all-debug",
             "displayName": "[Linux][All] Debug",
             "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge (Debug)",
@@ -149,6 +194,25 @@
                 "TRACY_BUILD_MERGE": "ON",
                 "NO_STATISTICS": "OFF",
                 "NO_ISA_EXTENSIONS": "OFF"
+            }
+      },
+      {
+        "name": "wsl2-all-debug",
+        "displayName": "[WSL2][All] Debug",
+        "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge with timer fallback (Debug)",
+        "inherits": "wsl2-base",
+        "binaryDir": "${sourceDir}/out/wsl2-all-debug",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Debug",
+          "TRACY_BUILD_CAPTURE": "ON",
+          "TRACY_BUILD_TEST": "ON",
+          "TRACY_BUILD_PROFILER": "ON",
+          "TRACY_BUILD_EXAMPLES": "ON",
+          "TRACY_BUILD_IMPORT": "ON",
+          "TRACY_BUILD_CSVEXPORT": "ON",
+          "TRACY_BUILD_MERGE": "ON",
+          "NO_STATISTICS": "OFF",
+          "NO_ISA_EXTENSIONS": "OFF"
             }
         },
         {
@@ -168,6 +232,25 @@
                 "TRACY_BUILD_MERGE": "ON",
                 "NO_STATISTICS": "OFF",
                 "NO_ISA_EXTENSIONS": "OFF"
+            }
+        },
+      {
+        "name": "wsl2-all-release",
+        "displayName": "[WSL2][All] Release",
+        "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge with timer fallback (Release)",
+        "inherits": "wsl2-base",
+        "binaryDir": "${sourceDir}/out/wsl2-all-release",
+        "cacheVariables": {
+          "CMAKE_BUILD_TYPE": "Release",
+          "TRACY_BUILD_CAPTURE": "ON",
+          "TRACY_BUILD_TEST": "ON",
+          "TRACY_BUILD_PROFILER": "ON",
+          "TRACY_BUILD_EXAMPLES": "ON",
+          "TRACY_BUILD_IMPORT": "ON",
+          "TRACY_BUILD_CSVEXPORT": "ON",
+          "TRACY_BUILD_MERGE": "ON",
+          "NO_STATISTICS": "OFF",
+          "NO_ISA_EXTENSIONS": "OFF"
             }
         }
     ],
@@ -198,19 +281,39 @@
             "configurePreset": "linux-client-debug"
         },
         {
+          "name": "wsl2-client-debug-build",
+          "displayName": "[WSL2][Client] Debug Build",
+          "configurePreset": "wsl2-client-debug"
+        },
+      {
             "name": "linux-client-release-build",
             "displayName": "[Linux][Client] Release Build",
             "configurePreset": "linux-client-release"
         },
         {
+          "name": "wsl2-client-release-build",
+          "displayName": "[WSL2][Client] Release Build",
+          "configurePreset": "wsl2-client-release"
+        },
+      {
             "name": "linux-all-debug-build",
             "displayName": "[Linux][All] Debug Build",
             "configurePreset": "linux-all-debug"
         },
         {
+          "name": "wsl2-all-debug-build",
+          "displayName": "[WSL2][All] Debug Build",
+          "configurePreset": "wsl2-all-debug"
+        },
+      {
             "name": "linux-all-release-build",
             "displayName": "[Linux][All] Release Build",
             "configurePreset": "linux-all-release"
+      },
+      {
+        "name": "wsl2-all-release-build",
+        "displayName": "[WSL2][All] Release Build",
+        "configurePreset": "wsl2-all-release"
         }
     ],
     "testPresets": [
@@ -228,6 +331,22 @@
             "configurePreset": "linux-all-release",
             "output": {
                 "outputOnFailure": true
+            }
+        },
+      {
+        "name": "wsl2-test-debug-run",
+        "displayName": "[WSL2][Test] Debug Run",
+        "configurePreset": "wsl2-all-debug",
+        "output": {
+          "outputOnFailure": true
+        }
+      },
+      {
+        "name": "wsl2-test-release-run",
+        "displayName": "[WSL2][Test] Release Run",
+        "configurePreset": "wsl2-all-release",
+        "output": {
+          "outputOnFailure": true
             }
         }
     ],

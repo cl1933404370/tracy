@@ -51,10 +51,10 @@
 #  define ChromeConcat2( a, b ) a##b
 #  define ChromeConcat( a, b ) ChromeConcat2( a, b )
 #  define ChromeZoneScoped \
-      chrome_export::ChromeScopedZone ChromeConcat( __chrome_zone_, TracyLine )( TracyFunction, TracyFile, TracyLine )
+      const chrome_export::ChromeScopedZone ChromeConcat( __chrome_zone_, TracyLine )( TracyFunction, TracyFile, TracyLine )
 
 #  define ChromeZoneNamed( name ) \
-      chrome_export::ChromeScopedZone ChromeConcat( __chrome_zone_, TracyLine )( name, TracyFile, TracyLine )
+      const chrome_export::ChromeScopedZone ChromeConcat( __chrome_zone_, TracyLine )( name, TracyFile, TracyLine )
 
 #  define ChromeFrameMark \
       chrome_export::ChromeTracer::Instance().RecordFrame( nullptr )
@@ -73,5 +73,12 @@
 
 #  define ChromeFlushToCallback() \
       chrome_export::ChromeTracer::Instance().FlushToCallback()
+
+// 存在dlopen场景，析构函数无法被调用，导致日志无法正常输出，因此提供一个外部接口，强制调用日志dump函数
+inline void ChromeTraceDump()
+{
+    chrome_export::ChromeInit::DumpLog();
+}
+
 #endif
 #endif // __TRACY_CHROME_EXPORT_HPP__

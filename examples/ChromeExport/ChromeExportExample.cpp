@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cmath>
 #include <thread>
+#include <cstdlib>
 
 // ── Simulated workloads ─────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ void BusyWork( int iterations )
     ChromeZoneScoped;
     volatile double sum = 0;
     for( int i = 0; i < iterations; i++ )
-        sum += std::sin( (double)i );
+        sum += std::sin( static_cast<double>(i) );
 }
 
 void ParseData()
@@ -59,48 +60,22 @@ void WorkerThread( int id )
     }
 }
 
-// Example: write a complete Chrome JSON file via callback
-static FILE* g_outFile = nullptr;
-static bool  g_first = true;
-
-void WriteEventLine( const char* json )
-{
-    if( !g_first ) fprintf( g_outFile, ",\n" );
-    g_first = false;
-    fputs( json, g_outFile );
-}
-
-// Global init: register callback and main thread name before main()
-static struct ChromeInit {
-    ChromeInit() {
-        ChromeSetOutputCallback( WriteEventLine );
-        ChromeSetThreadName( "MainThread" );
-    }
-} g_chromeInit;
-
 int main()
 {
+#ifndef _WIN32
+    setenv( "ASCEND_PROCESS_LOG_PATH", "/tmp/ascend_log", 1 );
+#else
+    _putenv_s( "ASCEND_PROCESS_LOG_PATH", "C:\\tmp\\ascend_log" );
+#endif
     fprintf( stderr, "Running test...\n" );
-
     for( int i = 0; i < 10; i++ )
         ProcessFrame( i );
-
     std::thread t1( WorkerThread, 0 );
     std::thread t2( WorkerThread, 1 );
     std::thread t3( WorkerThread, 2 );
     t1.join();
     t2.join();
     t3.join();
-
-    // Flush all events through callback → write to file
-    g_outFile = fopen( "trace.json", "w" );
-    fprintf( g_outFile, "{\"traceEvents\":[\n" );
-    ChromeFlushToCallback();
-    fprintf( g_outFile, "\n]}\n" );
-    fclose( g_outFile );
-
-    fprintf( stderr, "Saved %zu events to trace.json\n",
-        chrome_export::ChromeTracer::Instance().EventCount() );
-
+    ChromeTraceDump();
     return 0;
 }

@@ -7,7 +7,7 @@
         "${workspaceFolder}/merge",
         "${workspaceFolder}/update",
         "${workspaceFolder}/test",
-        "${workspaceFolder}",
+        "${workspaceFolder}"
     ],
     "cmake.buildDirectory": "${sourceDirectory}/build",
     "cmake.autoSelectActiveFolder": false,
@@ -20,4 +20,34 @@
         "command script import ${workspaceRoot}/extra/natvis.py"
     ],
     "cmake.ctest.testExplorerIntegrationEnabled": true,
+    "cmake.debugConfig": {
+        "type": "cppdbg",
+        "request": "launch",
+        "program": "${command:cmake.launchTargetPath}",
+        "cwd": "${workspaceFolder}",
+        "MIMode": "gdb",
+        "miDebuggerPath": "/usr/bin/gdb",
+        "externalConsole": false,
+        "environment": [
+            {
+                "name": "TRACY_NO_INVARIANT_CHECK",
+                "value": "1"
+            },
+            {
+                "name": "ASCEND_PROCESS_LOG_PATH",
+                "value": "/tmp/ascend_log"
+            }
+        ],
+        "env": {
+            "TRACY_NO_INVARIANT_CHECK": "1",
+            "ASCEND_PROCESS_LOG_PATH": "/tmp/ascend_log"
+        },
+        "setupCommands": [
+            {
+                "description": "Enable pretty-printing for gdb",
+                "text": "-enable-pretty-printing",
+                "ignoreFailures": true
+            }
+        ]
+    }
 }

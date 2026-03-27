@@ -5,27 +5,27 @@
 set(TRACY_ROOT ${CMAKE_CURRENT_LIST_DIR}/..)
 set(TRACY_PUBLIC_DIR ${TRACY_ROOT}/public)
 
-# ── ChromeExport example ────────────────────────────────────────────────
-add_executable(chrome-export-example
-    ChromeExport/ChromeExportExample.cpp
-    ${TRACY_PUBLIC_DIR}/TracyClient.cpp)
-target_include_directories(chrome-export-example PRIVATE ${TRACY_PUBLIC_DIR})
-target_compile_features(chrome-export-example PRIVATE cxx_std_17)
-target_compile_definitions(chrome-export-example PUBLIC TRACY_ENABLE=1)
-if(MSVC)
-    target_compile_options(chrome-export-example PRIVATE /utf-8)
-endif()
-find_package(Threads REQUIRED)
-target_link_libraries(chrome-export-example PRIVATE Threads::Threads)
+if (MSVC)
+    add_compile_options(/utf-8)
+endif ()
+add_compile_definitions(
+        TRACY_ENABLE=1
+        $<$<BOOL:${TRACY_TIMER_FALLBACK}>:TRACY_TIMER_FALLBACK>
+        $<$<BOOL:${TRACY_DISALLOW_HW_TIMER}>:TRACY_DISALLOW_HW_TIMER>
+)
 
-# ── NcclAlgoCompare example ─────────────────────────────────────────────
-add_executable(nccl-algo-compare
-    NcclAlgoCompare/nccl_algo_compare.cpp
-    ${TRACY_PUBLIC_DIR}/TracyClient.cpp)
-target_include_directories(nccl-algo-compare PRIVATE ${TRACY_PUBLIC_DIR})
-target_compile_features(nccl-algo-compare PRIVATE cxx_std_14)
-target_compile_definitions(nccl-algo-compare PUBLIC TRACY_ENABLE=1)
-if(MSVC)
-    target_compile_options(nccl-algo-compare PRIVATE /utf-8)
+add_subdirectory(ChromeExport)
+add_subdirectory(NcclAlgoCompare)
+find_package(OpenCL QUIET)
+if (OpenCL_FOUND)
+    add_subdirectory(OpenCLVectorAdd)
 endif()
-target_link_libraries(nccl-algo-compare PRIVATE Threads::Threads)
+
+# fibers example (matches: g++ fibers.cpp ../public/TracyClient.cpp -I../public/tracy -DTRACY_ENABLE -DTRACY_FIBERS -lpthread -ldl)
+add_executable(fibers-example
+        fibers.cpp)
+target_include_directories(fibers-example PRIVATE ${TRACY_PUBLIC_DIR} ${TRACY_PUBLIC_DIR}/tracy)
+target_compile_features(fibers-example PRIVATE cxx_std_17)
+target_compile_definitions(fibers-example PRIVATE TRACY_ENABLE TRACY_FIBERS)
+find_package(Threads REQUIRED)
+target_link_libraries(fibers-example PRIVATE Tracy::TracyClient Threads::Threads dl)

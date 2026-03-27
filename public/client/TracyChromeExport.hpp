@@ -8,22 +8,100 @@
 #include <vector>
 #include <memory>
 #include <mutex>
-#include <cstdint>
-#include <cstddef>
 #include <string>
+#include <thread>
+#include <functional>
 
 #ifdef __linux__
 #  include <time.h>
+#  include <unistd.h>
+#  include <sys/syscall.h>
 #elif defined(_WIN32)
 #  include <windows.h>
 #elif defined(__APPLE__)
 #  include <mach/mach_time.h>
+#  include <pthread.h>
+#else
+#  /* Try to include unistd for other POSIX-like systems to get getpid() */
+#  include <unistd.h>
+#endif
+
+#if defined( _MSVC_LANG )
+#  define TRACY_CPP_VERSION _MSVC_LANG
+#elif defined( __cplusplus )
+#  define TRACY_CPP_VERSION __cplusplus
+#else
+#  define TRACY_CPP_VERSION 199711L
+#endif
+// 检查 C++ 版本
+#if TRACY_CPP_VERSION >= 202002L
+#  define TRACY_CPP20
+#elif TRACY_CPP_VERSION >= 201703L
+#  define TRACY_CPP17
+#elif TRACY_CPP_VERSION >= 201402L
+#  define TRACY_CPP14
+#else
+#  define TRACY_CPP11
+#endif
+
+// constexpr 文件名提取
+namespace tracy_internal
+{
+#if TRACY_CPP_VERSION >= 201402L
+    // C++14+ 支持循环 constexpr
+constexpr const char* tracy_filename( const char* path )
+{
+    const char* last = path;
+    for( const char* p = path; *p; ++p )
+    {
+        if( *p == '/' || *p == '\\' ) last = p + 1;
+    }
+    return last;
+}
+#else
+    // C++11 条件: 仅允许单一 return 语句（不能循环）, 使用递归实现
+constexpr const char* str_end( const char* str )
+{
+    return *str ? str_end( str + 1 ) : str;
+}
+
+constexpr bool str_slant( const char* str )
+{
+    return *str ? ( *str == '/' ? true : str_slant( str + 1 ) ) : false;
+}
+
+constexpr const char* r_slant( const char* str )
+{
+    return *str == '/' ? ( str + 1 ) : r_slant( str - 1 );
+}
+
+constexpr const char* tracy_filename( const char* path )
+{
+    return str_slant( path ) ? r_slant( str_end( path ) ) : path;
+}
+#endif
+}
+
+#if TRACY_CPP_VERSION >= 202002L
+#  include <source_location>
+#  define TracyFile std::source_location::current().file_name()
+#else
+#  define TracyFile ::tracy_internal::tracy_filename( __FILE__ )
 #endif
 
 #if !defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__)
 #  include <chrono>
 #endif
 #include <common/TracyForceInline.hpp>
+
+/* C++14 compatibility: provide a nodiscard macro if compiling pre-C++17 */
+#ifndef TRACY_NODISCARD
+#  if __cplusplus >= 201703L
+#    define TRACY_NODISCARD [[nodiscard]]
+#  else
+#    define TRACY_NODISCARD
+#  endif
+#endif
 
 namespace chrome_export {
 
@@ -32,9 +110,9 @@ namespace chrome_export {
 static tracy_force_inline int64_t GetTimeNs()
 {
 #if defined(__linux__) && defined(CLOCK_MONOTONIC_RAW)
-    struct timespec ts;
+    timespec ts{};
     clock_gettime( CLOCK_MONOTONIC_RAW, &ts );
-    return int64_t( ts.tv_sec ) * 1000000000ll + int64_t( ts.tv_nsec );
+    return ts.tv_sec * 1000000000ll + ts.tv_nsec;
 #elif defined(_WIN32)
     static LARGE_INTEGER freq = {};
     if( freq.QuadPart == 0 ) QueryPerformanceFrequency( &freq );
@@ -72,14 +150,30 @@ struct Event
 
 struct ThreadBuffer
 {
+private:
     std::vector<Event> events;
     std::deque<std::string> owned_strings;  // stable storage for dynamic names
     uint32_t    tid;
     std::string name;
+
+public:
     ThreadBuffer();
+    ThreadBuffer( const ThreadBuffer& ) = default;
+    ThreadBuffer( ThreadBuffer&& ) noexcept = default;
+    ThreadBuffer& operator=( const ThreadBuffer& ) = default;
+    ThreadBuffer& operator=( ThreadBuffer&& ) = default;
+
+    void SetTid( const uint32_t t ) { tid = t; }
+    TRACY_NODISCARD uint32_t GetTid() const { return tid; }
+    void SetName( const char* n ) { name = n ? n : ""; }
+    TRACY_NODISCARD const std::string& GetName() const { return name; }
+    std::deque<std::string>& GetOwnedStrings() { return owned_strings; }
     // Intern a string: copies into stable storage, returns pointer that
     // remains valid for the lifetime of this ThreadBuffer.
     const char* Intern( const char* s );
+    // Provide access to events if needed
+    std::vector<Event>& GetEvents() { return events; }
+    TRACY_NODISCARD const std::vector<Event>& GetEvents() const { return events; }
 };
 
 // ── Core tracer (singleton) ─────────────────────────────────────────────────
@@ -95,57 +189,57 @@ public:
     void RecordBegin( const char* name, const char* file, const uint32_t line )
     {
         auto* buf = GetThreadBuffer();
-        Event e;
+        Event e{};
         e.type  = Event::ZoneBeginEvent;
-        e.tid   = buf->tid;
+        e.tid = buf->GetTid();
         e.ts_ns = GetTimeNs() - m_epochNs;
         e.name  = buf->Intern( name );
         e.file  = file;   // __FILE__ is always a string literal
         e.line  = line;
         e.value = 0;
-        buf->events.push_back( e );
+        buf->GetEvents().push_back(e);
     }
 
     void RecordEnd()
     {
         auto* buf = GetThreadBuffer();
-        Event e;
+        Event e{};
         e.type  = Event::ZoneEndEvent;
-        e.tid   = buf->tid;
+        e.tid = buf->GetTid();
         e.ts_ns = GetTimeNs() - m_epochNs;
         e.name  = nullptr;
         e.file  = nullptr;
         e.line  = 0;
         e.value = 0;
-        buf->events.push_back( e );
+        buf->GetEvents().push_back(e);
     }
 
     void RecordFrame( const char* name = nullptr )
     {
         auto* buf = GetThreadBuffer();
-        Event e;
+        Event e{};
         e.type  = Event::FrameMarkEvent;
-        e.tid   = buf->tid;
+        e.tid = buf->GetTid();
         e.ts_ns = GetTimeNs() - m_epochNs;
         e.name  = buf->Intern( name ? name : "frame" );
         e.file  = nullptr;
         e.line  = 0;
         e.value = 0;
-        buf->events.push_back( e );
+        buf->GetEvents().push_back(e);
     }
 
     void RecordPlot( const char* name, const double value )
     {
         auto* buf = GetThreadBuffer();
-        Event e;
+        Event e{};
         e.type  = Event::PlotValueEvent;
-        e.tid   = buf->tid;
+        e.tid = buf->GetTid();
         e.ts_ns = GetTimeNs() - m_epochNs;
         e.name  = buf->Intern( name );
         e.file  = nullptr;
         e.line  = 0;
         e.value = value;
-        buf->events.push_back( e );
+        buf->GetEvents().push_back(e);
     }
 
     void SetThreadName( const char* name );
@@ -158,7 +252,7 @@ public:
 
     // Set a callback to receive each Chrome JSON event line.
     // Callback signature: void(const char* JSON_line)
-    typedef void (*OutputCallback)( const char* );
+    using OutputCallback = void ( * )( const char*);
 
     void SetOutputCallback( OutputCallback cb );
 
@@ -170,7 +264,7 @@ public:
     void Clear() const;
 
     // Call after all worker threads have joined (same as Safe).
-    size_t EventCount() const;
+    TRACY_NODISCARD size_t EventCount() const;
 
 private:
     ChromeTracer() : m_epochNs( GetTimeNs() ) {}
@@ -194,5 +288,46 @@ public:
     ChromeScopedZone& operator=( const ChromeScopedZone& ) = delete;
 };
 
+inline uint64_t GetLogPid()
+{
+#ifdef _WIN32
+    static const uint64_t pid = static_cast<uint64_t>(GetCurrentProcessId());
+    return pid;
+#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
+    static const auto pid = static_cast<uint64_t>(getpid());
+    return pid;
+#else
+    // Unknown platform: fallback to zero
+    return 0;
+#endif
+}
+
+inline uint64_t GetLogTid()
+{
+#ifdef __linux__
+    thread_local const auto tid = static_cast<uint64_t>(syscall( __NR_gettid ));
+    return tid;
+#elif defined(_WIN32)
+    // DWORD -> uint64_t
+    return static_cast<uint64_t>(GetCurrentThreadId());
+#elif defined(__APPLE__)
+    // pthread_threadid_np provides a uint64_t thread id on macOS
+    uint64_t tid = 0;
+    (void)pthread_threadid_np( NULL, &tid );
+    return tid;
+#else
+    // Portable fallback: hash of std::thread::id; stable per thread for process lifetime
+    thread_local const uint64_t tid = static_cast<uint64_t>(std::hash<std::thread::id>()( std::this_thread::get_id() ));
+    return tid;
+#endif
+}
+
+struct ChromeInit
+{
+    static std::once_flag g_dumpLogOnce;
+    static ChromeInit& Instance( const std::string& ChromeSetThreadName = "", ChromeTracer::OutputCallback cb = nullptr );
+    ~ChromeInit();
+    static void DumpLog();
+};
 } // namespace chrome_export
 #endif //TRACY_TRACY_CHROME_EXPORT_H
