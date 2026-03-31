@@ -1,7 +1,3 @@
-//
-// Created by c60039780 on 2026/3/24.
-//
-
 #ifndef TRACY_TRACY_CHROME_EXPORT_H
 #define TRACY_TRACY_CHROME_EXPORT_H
 #include <deque>
@@ -26,7 +22,7 @@
 #  include <unistd.h>
 #endif
 
-#if defined( _MSVC_LANG )
+#ifdef _MSVC_LANG
 #  define TRACY_CPP_VERSION _MSVC_LANG
 #elif defined( __cplusplus )
 #  define TRACY_CPP_VERSION __cplusplus
@@ -103,81 +99,46 @@ constexpr const char* tracy_filename( const char* path )
 #  endif
 #endif
 
-namespace chrome_export {
-
-// ── Timing (nanoseconds, monotonic) ─────────────────────────────────────────
-
-static tracy_force_inline int64_t GetTimeNs()
+#if defined( TRACY_SAVE_NO_SEND ) && defined( TRACY_ENABLE )
+namespace tracy_dump
 {
-#if defined(__linux__) && defined(CLOCK_MONOTONIC_RAW)
-    timespec ts{};
-    clock_gettime( CLOCK_MONOTONIC_RAW, &ts );
-    return ts.tv_sec * 1000000000ll + ts.tv_nsec;
-#elif defined(_WIN32)
-    static LARGE_INTEGER freq = {};
-    if( freq.QuadPart == 0 ) QueryPerformanceFrequency( &freq );
-    LARGE_INTEGER now;
-    QueryPerformanceCounter( &now );
-    return static_cast<int64_t>( static_cast<double>( now.QuadPart ) / freq.QuadPart * 1e9 );
-#elif defined(__APPLE__)
-    static mach_timebase_info_data_t tb = {};
-    if( tb.denom == 0 ) mach_timebase_info( &tb );
-    return (int64_t)( mach_absolute_time() * tb.numer / tb.denom );
-#else
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(
-        std::chrono::high_resolution_clock::now().time_since_epoch() ).count();
-#endif
-}
-
-// ── Event storage ───────────────────────────────────────────────────────────
-
-struct Event
-{
-    enum Type : uint8_t { ZoneBeginEvent, ZoneEndEvent, FrameMarkEvent, PlotValueEvent };
-    Type     type;
-    uint32_t tid;
-    int64_t  ts_ns;       // timestamp in nanoseconds, relative to epoch
-    const char* name;     // function/zone name (string literal, not owned)
-    const char* file;     // __FILE__ (string literal)
-    uint32_t    line;     // __LINE__
-    double      value;    // PlotValue payload
-};
-
-// ── Per-thread event buffer ─────────────────────────────────────────────────
-// Each thread writes into its own buffer with zero synchronization.
-// A mutex is taken only ONCE per thread lifetime (on first access) to
-// register the buffer with the central tracer.
-
 struct ThreadBuffer
 {
 private:
-    std::vector<Event> events;
-    std::deque<std::string> owned_strings;  // stable storage for dynamic names
-    uint32_t    tid;
-    std::string name;
+    // single contiguous buffer allocated from rpmalloc (rpaligned_alloc). The
+    // layout is length-prefixed frames: [uint32_t len][bytes]...
+    char* saved_blob = nullptr;
+    size_t saved_size = 0;
+    size_t saved_capacity = 0;
 
 public:
-    ThreadBuffer();
-    ThreadBuffer( const ThreadBuffer& ) = default;
-    ThreadBuffer( ThreadBuffer&& ) noexcept = default;
-    ThreadBuffer& operator=( const ThreadBuffer& ) = default;
-    ThreadBuffer& operator=( ThreadBuffer&& ) = default;
+    ThreadBuffer() noexcept;
+    ~ThreadBuffer() noexcept;
+    ThreadBuffer( const ThreadBuffer& ) = delete;
+    ThreadBuffer( ThreadBuffer&& ) noexcept = delete;
+    ThreadBuffer& operator=( const ThreadBuffer& ) = delete;
+    ThreadBuffer& operator=( ThreadBuffer&& ) = delete;
 
-    void SetTid( const uint32_t t ) { tid = t; }
-    TRACY_NODISCARD uint32_t GetTid() const { return tid; }
-    void SetName( const char* n ) { name = n ? n : ""; }
-    TRACY_NODISCARD const std::string& GetName() const { return name; }
-    std::deque<std::string>& GetOwnedStrings() { return owned_strings; }
-    // Intern a string: copies into stable storage, returns pointer that
-    // remains valid for the lifetime of this ThreadBuffer.
+    // Append raw binary data (no locking required - buffer is per-thread)
+    void AddSavedData( const void* data, size_t len );
+    // Append a NUL-terminated text line (helper)
+    void AddSavedLine( const char* line );
+    // Intern a string into owned_strings and return stable pointer
     const char* Intern( const char* s );
-    // Provide access to events if needed
-    std::vector<Event>& GetEvents() { return events; }
-    TRACY_NODISCARD const std::vector<Event>& GetEvents() const { return events; }
+
+    // Accessors for saved blob (pointer+size)
+    const char* GetSavedBlobPtr() const { return saved_blob; }
+    size_t GetSavedBlobSize() const { return saved_size; }
+    void ClearSavedBlob();
+    // Ensure capacity in bytes. Returns true on success, false if allocation failed.
+    // saved_capacity and saved_size are measured in bytes.
+    bool ReserveSavedBlobBytes( size_t bytes );
 };
 
 // ── Core tracer (singleton) ─────────────────────────────────────────────────
 
+// Main dump/tracer singleton. Collects per-thread trace frames and
+// can flush them either as Chrome events or as a ProfileChunk for flamegraphs.
 class ChromeTracer
 {
 public:
@@ -185,149 +146,56 @@ public:
 
     // Returns the calling thread's buffer.  Lock-free after the first call.
     ThreadBuffer* GetThreadBuffer();
-
-    void RecordBegin( const char* name, const char* file, const uint32_t line )
-    {
-        auto* buf = GetThreadBuffer();
-        Event e{};
-        e.type  = Event::ZoneBeginEvent;
-        e.tid = buf->GetTid();
-        e.ts_ns = GetTimeNs() - m_epochNs;
-        e.name  = buf->Intern( name );
-        e.file  = file;   // __FILE__ is always a string literal
-        e.line  = line;
-        e.value = 0;
-        buf->GetEvents().push_back(e);
-    }
-
-    void RecordEnd()
-    {
-        auto* buf = GetThreadBuffer();
-        Event e{};
-        e.type  = Event::ZoneEndEvent;
-        e.tid = buf->GetTid();
-        e.ts_ns = GetTimeNs() - m_epochNs;
-        e.name  = nullptr;
-        e.file  = nullptr;
-        e.line  = 0;
-        e.value = 0;
-        buf->GetEvents().push_back(e);
-    }
-
-    void RecordFrame( const char* name = nullptr )
-    {
-        auto* buf = GetThreadBuffer();
-        Event e{};
-        e.type  = Event::FrameMarkEvent;
-        e.tid = buf->GetTid();
-        e.ts_ns = GetTimeNs() - m_epochNs;
-        e.name  = buf->Intern( name ? name : "frame" );
-        e.file  = nullptr;
-        e.line  = 0;
-        e.value = 0;
-        buf->GetEvents().push_back(e);
-    }
-
-    void RecordPlot( const char* name, const double value )
-    {
-        auto* buf = GetThreadBuffer();
-        Event e{};
-        e.type  = Event::PlotValueEvent;
-        e.tid = buf->GetTid();
-        e.ts_ns = GetTimeNs() - m_epochNs;
-        e.name  = buf->Intern( name );
-        e.file  = nullptr;
-        e.line  = 0;
-        e.value = value;
-        buf->GetEvents().push_back(e);
-    }
-
-    void SetThreadName( const char* name );
-
-    // Format a single event as Chrome JSON.  Returns the number of chars written.
-    // Buffer must be at least 512 bytes.
-    static int FormatEvent( const Event& e, char* buf, size_t bufSize );
-
-    static int FormatThreadName( uint32_t tid, const char* name, char* buf, size_t bufSize );
-
-    // Set a callback to receive each Chrome JSON event line.
-    // Callback signature: void(const char* JSON_line)
-    using OutputCallback = void ( * )( const char*);
-
+    // Output callback receives a pointer to a frame and its size. Using a
+    // pointer+size allows emitting binary .Tracy files instead of text JSON.
+    using OutputCallback = void ( * )( const char*, size_t );
     void SetOutputCallback( OutputCallback cb );
-
     // Flush all buffered events through the output callback, one line per call.
     // Call after all worker threads have joined.
     void FlushToCallback() const;
-
+    // Also flush a ProfileChunk (ph:"P") representation built from B/E events
+    // so Chrome can display a flamegraph. Emits a single JSON event containing
+    // samples and stackFrames. Requires an output callback to be set.
+    void FlushProfileToCallback() const;
     // Call after all worker threads have joined (same as Safe).
     void Clear() const;
-
     // Call after all worker threads have joined (same as Safe).
     TRACY_NODISCARD size_t EventCount() const;
 
 private:
-    ChromeTracer() : m_epochNs( GetTimeNs() ) {}
-
-    ~ChromeTracer();
-
-    int64_t    m_epochNs;          // epoch: all timestamps relative to this
-    std::mutex m_registryMutex;    // protects m_buffers (taken once per thread)
+    ChromeTracer()
+        : m_outputCb( nullptr )
+    {
+    }
+    ~ChromeTracer() noexcept;
+    mutable std::mutex m_registryMutex;
     std::vector<std::unique_ptr<ThreadBuffer>> m_buffers;
-    OutputCallback m_outputCb = nullptr;
+    OutputCallback m_outputCb;
 };
-
-// ── RAII Zone Guard ─────────────────────────────────────────────────────────
-
-class ChromeScopedZone
-{
-public:
-    ChromeScopedZone( const char* name, const char* file, uint32_t line );
-    ~ChromeScopedZone();
-    ChromeScopedZone( const ChromeScopedZone& ) = delete;
-    ChromeScopedZone& operator=( const ChromeScopedZone& ) = delete;
-};
-
-inline uint64_t GetLogPid()
-{
-#ifdef _WIN32
-    static const uint64_t pid = static_cast<uint64_t>(GetCurrentProcessId());
-    return pid;
-#elif defined(__APPLE__) || defined(__linux__) || defined(__unix__)
-    static const auto pid = static_cast<uint64_t>(getpid());
-    return pid;
-#else
-    // Unknown platform: fallback to zero
-    return 0;
-#endif
-}
-
-inline uint64_t GetLogTid()
-{
-#ifdef __linux__
-    thread_local const auto tid = static_cast<uint64_t>(syscall( __NR_gettid ));
-    return tid;
-#elif defined(_WIN32)
-    // DWORD -> uint64_t
-    return static_cast<uint64_t>(GetCurrentThreadId());
-#elif defined(__APPLE__)
-    // pthread_threadid_np provides a uint64_t thread id on macOS
-    uint64_t tid = 0;
-    (void)pthread_threadid_np( NULL, &tid );
-    return tid;
-#else
-    // Portable fallback: hash of std::thread::id; stable per thread for process lifetime
-    thread_local const uint64_t tid = static_cast<uint64_t>(std::hash<std::thread::id>()( std::this_thread::get_id() ));
-    return tid;
-#endif
-}
 
 struct ChromeInit
 {
     static std::once_flag g_dumpLogOnce;
-    static ChromeInit& Instance( const std::string& ChromeSetThreadName = "", ChromeTracer::OutputCallback cb = nullptr );
-    ~ChromeInit();
+    static ChromeInit& Instance( ChromeTracer::OutputCallback cb = nullptr );
+    ~ChromeInit() noexcept;
     static void DumpLog();
 };
-} // namespace chrome_export
+
+// Save raw profiler frame data into thread-local storage. Data is stored as
+// [uint32_t len][bytes...]. This function uses a thread_local ThreadBuffer
+// so callers do not need to manage per-thread storage.
+void SaveProfilerData( const void* data, size_t len );
+
+// Implementations are in the .cpp file. Also provide an overload that accepts
+// a raw pointer/size so callers can iterate frames stored in ThreadBuffer
+// without copying into a std::vector.
+void IterateSavedFramesFromPtr( const char* data, size_t size, const std::function<void( const char*, size_t )>& cb );
+
+// Original vector-based helper (kept for compatibility; implemented in .cpp)
+void IterateSavedFrames( const std::vector<char>& blob, const std::function<void( const char*, size_t )>& cb );
+} // namespace tracy_dump
+#else
+// When TRACY_SAVE_NO_SEND or TRACY_ENABLE is not defined, provide no declarations
+// to avoid any static initialization or extra code generation.
+#endif // defined(TRACY_SAVE_NO_SEND) && defined(TRACY_ENABLE)
 #endif //TRACY_TRACY_CHROME_EXPORT_H

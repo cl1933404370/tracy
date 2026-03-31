@@ -40,7 +40,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE":  "Debug",
         "NO_STATISTICS":     "OFF",
-        "NO_ISA_EXTENSIONS": "OFF"
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_SAVE_NO_SEND": "OFF"
       }
     },
     {
@@ -52,7 +53,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE":  "Release",
         "NO_STATISTICS":     "OFF",
-        "NO_ISA_EXTENSIONS": "OFF"
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_SAVE_NO_SEND": "OFF"
       }
     }
   ],

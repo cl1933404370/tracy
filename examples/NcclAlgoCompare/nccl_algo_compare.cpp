@@ -13,12 +13,11 @@
 
 #include "tracy/TracyHcomm.hpp"
 
+#include <chrono>
 #include <cstdio>
-#include <cmath>
+#include <functional>
 #include <thread>
 #include <vector>
-#include <chrono>
-#include <functional>
 
 namespace
 {
@@ -36,7 +35,7 @@ constexpr int NUM_ITERS = 3; // 跑 3 轮取对比
 // ── 模拟网络传输延迟 ──────────────────────────────────────────────────────
 void SimulateTransfer( const int chunk_size )
 {
-    ChromeZoneNamed( "Transfer" );
+    ZoneScopedN( "Transfer" ); // NOLINT(*-const-correctness)
     // 传输耗时 = 延迟 + 数据量/带宽
     const int us = LATENCY_US + chunk_size / ( BW_FLOATS / 1000 );
     std::this_thread::sleep_for( std::chrono::microseconds( us ) );
@@ -45,7 +44,7 @@ void SimulateTransfer( const int chunk_size )
 // ── 模拟 Reduce 计算 ─────────────────────────────────────────────────────
 void SimulateReduce( const int count )
 {
-    ChromeZoneNamed( "Reduce" );
+    ZoneScopedN( "Reduce" ); // NOLINT(*-const-correctness)
     volatile float sum = 0;
     for( int i = 0; i < count; i++ )
         sum += 1.0f;
@@ -60,7 +59,7 @@ void SimulateReduce( const int count )
 void RingAllReduce_Rank( const int rank, const int total_ranks, const int data_size )
 {
     (void)rank;
-    ChromeZoneNamed( "RingAllReduce" );
+    ZoneScopedN( "RingAllReduce" ); // NOLINT(*-const-correctness)
 
     const int chunk = data_size / total_ranks;
     const int steps = total_ranks - 1;
@@ -68,7 +67,7 @@ void RingAllReduce_Rank( const int rank, const int total_ranks, const int data_s
     // Phase 1: ReduceScatter
 
     {
-        ChromeZoneNamed( "Ring::ReduceScatter" );
+        ZoneScopedN( "Ring::ReduceScatter" ); // NOLINT(*-const-correctness)
         for( int s = 0; s < steps; s++ )
         {
             SimulateTransfer( chunk );
@@ -78,7 +77,7 @@ void RingAllReduce_Rank( const int rank, const int total_ranks, const int data_s
 
     // Phase 2: AllGather
     {
-        ChromeZoneNamed( "Ring::AllGather" );
+        ZoneScopedN( "Ring::AllGather" ); // NOLINT(*-const-correctness)
         for( int s = 0; s < steps; s++ )
         {
             SimulateTransfer( chunk );
@@ -95,14 +94,14 @@ void RingAllReduce_Rank( const int rank, const int total_ranks, const int data_s
 void TreeAllReduce_Rank( const int rank, const int total_ranks, const int data_size )
 {
     (void)rank;
-    ChromeZoneNamed( "TreeAllReduce" );
+    ZoneScopedN( "TreeAllReduce" ); // NOLINT(*-const-correctness)
 
     int log2n = 0;
     for( int n = total_ranks; n > 1; n >>= 1 ) log2n++;
 
     // Phase 1: Recursive Halving (Reduce)
     {
-        ChromeZoneNamed( "Tree::RecursiveHalving" );
+        ZoneScopedN( "Tree::RecursiveHalving" ); // NOLINT(*-const-correctness)
         int chunk = data_size;
         for( int d = 0; d < log2n; d++ )
         {
@@ -114,7 +113,7 @@ void TreeAllReduce_Rank( const int rank, const int total_ranks, const int data_s
 
     // Phase 2: Recursive Doubling (Broadcast)
     {
-        ChromeZoneNamed( "Tree::RecursiveDoubling" );
+        ZoneScopedN( "Tree::RecursiveDoubling" ); // NOLINT(*-const-correctness)
         int chunk = data_size / total_ranks;
         for( int d = 0; d < log2n; d++ )
         {
@@ -134,24 +133,26 @@ void RunAllRanks( const char* algo_name, const AlgoFunc& fn, const int iter )
 {
     char zone_name[64];
     snprintf( zone_name, sizeof( zone_name ), "%s_iter%d", algo_name, iter );
-    // 主线程标记这一轮
-    ChromeZoneNamed( zone_name );
+    // Use ZoneTransientN for a runtime zone name; wrap with
+    // SuppressVarShadowWarning to match ZoneScoped behavior without
+    // modifying Tracy.hpp.
+     ZoneTransientN( ___tracy_scoped_zone, zone_name, true );  // NOLINT(*-const-correctness)
 
     std::vector<std::thread> threads;
     threads.reserve( NUM_RANKS );
 
     for( int r = 0; r < NUM_RANKS; r++ )
     {
-        threads.emplace_back( [=]() {
+        threads.emplace_back( [=] {
             // 每个 rank 一个线程，设置线程名
             char name[32];
             snprintf( name, sizeof( name ), "%s_Rank%d", algo_name, r );
-            ChromeSetThreadName( name );
+            tracy::SetThreadName( name );
 
             fn( r, NUM_RANKS, DATA_SIZE );
 
             // 标一个 Plot 模拟 GPU 利用率
-            ChromePlot( "gpu_util", 70.0 + r * 3.0 );
+            TracyPlot( "gpu_util", 70.0 + r * 3.0 );
         } );
     }
 
@@ -161,33 +162,38 @@ void RunAllRanks( const char* algo_name, const AlgoFunc& fn, const int iter )
 
 int main()
 {
+    try
+    {
 #ifndef _WIN32
-    setenv( "ASCEND_PROCESS_LOG_PATH", "/tmp/ascend_log", 1 );
+        setenv( "ASCEND_PROCESS_LOG_PATH", "/tmp/ascend_log", 1 );
 #else
-    _putenv_s( "ASCEND_PROCESS_LOG_PATH", "C:\\tmp\\ascend_log" );
+        _putenv_s( "ASCEND_PROCESS_LOG_PATH", "C:\\tmp\\ascend_log" );
 #endif
-    printf( "=== NCCL/HCCL AllReduce Algorithm Comparison ===\n" );
-    printf( "Ranks: %d, DataSize: %d floats, Iters: %d\n\n", NUM_RANKS, DATA_SIZE, NUM_ITERS );
+        printf( "=== NCCL/HCCL AllReduce Algorithm Comparison ===\n" );
+        printf( "Ranks: %d, DataSize: %d floats, Iters: %d\n\n", NUM_RANKS, DATA_SIZE, NUM_ITERS );
 
     // ── Ring AllReduce ──
-    for( int i = 0; i < NUM_ITERS; i++ )
-    {
-        ChromeFrameMarkNamed( "Ring_Iteration" );
-        RunAllRanks( "Ring", RingAllReduce_Rank, i );
-    }
+        for( int i = 0; i < NUM_ITERS; i++ )
+        {
+            FrameMarkNamed( "Ring_Iteration" );
+            RunAllRanks( "Ring", RingAllReduce_Rank, i );
+        }
 
     // ── Tree AllReduce ──
-    for( int i = 0; i < NUM_ITERS; i++ )
-    {
-        ChromeFrameMarkNamed( "Tree_Iteration" );
-        RunAllRanks( "Tree", TreeAllReduce_Rank, i );
-    }
+        for( int i = 0; i < NUM_ITERS; i++ )
+        {
+            FrameMarkNamed( "Tree_Iteration" );
+            RunAllRanks( "Tree", TreeAllReduce_Rank, i );
+        }
 
     // ── 输出 trace.json ──
-    ChromeTraceDump();
-    printf( "\nDone! Wrote trace.json (%zu events)\n",
-            chrome_export::ChromeTracer::Instance().EventCount() );
-    printf( "Open with:  chrome://tracing  or\n" );
-    printf( "Convert:    tracy-import-chrome trace.json trace.tracy\n" );
+        ChromeTraceDump();
+        printf( "Open with:  chrome://tracing  or\n" );
+        printf( "Convert:    tracy-import-chrome trace.json trace.tracy\n" );
+    }
+    catch( ... )
+    {
+        return 1;
+    }
     return 0;
 }

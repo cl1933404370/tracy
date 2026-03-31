@@ -28,4 +28,8 @@ target_include_directories(fibers-example PRIVATE ${TRACY_PUBLIC_DIR} ${TRACY_PU
 target_compile_features(fibers-example PRIVATE cxx_std_17)
 target_compile_definitions(fibers-example PRIVATE TRACY_ENABLE TRACY_FIBERS)
 find_package(Threads REQUIRED)
-target_link_libraries(fibers-example PRIVATE Tracy::TracyClient Threads::Threads dl)
+
+target_link_libraries(fibers-example PRIVATE Tracy::TracyClient Threads::Threads)
+if (NOT WIN32)
+    target_link_libraries(<your-target> PRIVATE dl)
+endif ()

@@ -1,461 +1,1217 @@
 {
-    "version": 6,
-    "cmakeMinimumRequired": {
-        "major": 3,
-        "minor": 25,
-        "patch": 0
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "toolset": {
+        "value": "host=x64",
+        "strategy": "external"
+      },
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "environment": {
+        "VSCMD_ARG_HOST_ARCH": "x64",
+        "VSCMD_ARG_TGT_ARCH": "x64"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CPM_SOURCE_CACHE": "${sourceDir}/.cpm-cache",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "TRACY_STATIC": "ON",
+        "TRACY_ENABLE": "ON",
+        "TRACY_NO_EXIT": "ON"
+      }
     },
-    "configurePresets": [
-        {
-            "name": "windows-base",
-            "hidden": true,
-            "generator": "Ninja",
-          "toolset": {
-            "value": "host=x64",
-            "strategy": "external"
-          },
-            "architecture": {
-                "value": "x64",
-                "strategy": "external"
-            },
-          "environment": {
-            "VSCMD_ARG_HOST_ARCH": "x64",
-            "VSCMD_ARG_TGT_ARCH": "x64"
-          },
-            "condition": {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
-            },
-            "cacheVariables": {
-              "CPM_SOURCE_CACHE": "${sourceDir}/.cpm-cache",
-              "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
-            }
-        },
-        {
-            "name": "client-debug",
-            "displayName": "[Win][Client] Debug",
-            "description": "Build TracyClient instrumentation library (Debug)",
-            "inherits": "windows-base",
-            "binaryDir": "${sourceDir}/out/client-debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "TRACY_ENABLE": "ON"
-            }
-        },
-        {
-            "name": "client-release",
-            "displayName": "[Win][Client] Release",
-            "description": "Build TracyClient instrumentation library (Release)",
-            "inherits": "windows-base",
-            "binaryDir": "${sourceDir}/out/client-release",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "TRACY_ENABLE": "ON"
-            }
-        },
-        {
-            "name": "all-debug",
-            "displayName": "[Win][All] Debug  (Client + Capture + Test)",
-            "description": "Build TracyClient, tracy-capture and tracy-test in one pass (Debug)",
-            "inherits": "windows-base",
-            "binaryDir": "${sourceDir}/out/all-debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "TRACY_ENABLE": "ON",
-                "TRACY_BUILD_CAPTURE": "ON",
-                "TRACY_BUILD_TEST": "ON",
-                "TRACY_BUILD_PROFILER": "ON",
-                "TRACY_BUILD_EXAMPLES": "ON",
-                "NO_STATISTICS": "OFF",
-                "NO_ISA_EXTENSIONS": "OFF"
-            }
-        },
-        {
-            "name": "all-release",
-            "displayName": "[Win][All] Release (Client + Capture + Test)",
-            "description": "Build TracyClient, tracy-capture and tracy-test in one pass (Release)",
-            "inherits": "windows-base",
-            "binaryDir": "${sourceDir}/out/all-release",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "TRACY_ENABLE": "ON",
-                "TRACY_BUILD_CAPTURE": "ON",
-                "TRACY_BUILD_TEST": "ON",
-                "TRACY_BUILD_PROFILER": "ON",
-                "TRACY_BUILD_EXAMPLES": "ON",
-                "NO_STATISTICS": "OFF",
-                "NO_ISA_EXTENSIONS": "OFF"
-            }
-        },
-        {
-            "name": "linux-base",
-            "hidden": true,
-            "generator": "Ninja",
-            "condition": {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Linux"
-            },
-            "cacheVariables": {
-                "CPM_SOURCE_CACHE": "${sourceDir}/.cpm-cache",
-              "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-                "TRACY_STATIC": "ON",
-                "TRACY_ENABLE": "ON",
-                "LEGACY": "ON"
-            }
-        },
-        {
-          "name": "wsl2-base",
-          "hidden": true,
-          "inherits": "linux-base",
-          "condition": {
-            "type": "notEquals",
-            "lhs": "$env{WSL_INTEROP}",
-            "rhs": ""
-          },
-          "cacheVariables": {
-            "TRACY_TIMER_FALLBACK": "ON",
-            "TRACY_DISALLOW_HW_TIMER": "ON"
-          }
-        },
-      {
-            "name": "linux-client-debug",
-            "displayName": "[Linux][Client] Debug",
-            "description": "Build TracyClient + tracy-test + tracy-profiler (Debug)",
-            "inherits": "linux-base",
-            "binaryDir": "${sourceDir}/out/linux-client-debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "NO_STATISTICS": "OFF",
-                "NO_ISA_EXTENSIONS": "OFF",
-                "TRACY_BUILD_CAPTURE": "OFF",
-                "TRACY_BUILD_TEST": "OFF",
-                "TRACY_BUILD_PROFILER": "OFF",
-                "TRACY_BUILD_EXAMPLES": "OFF",
-                "TRACY_BUILD_IMPORT": "OFF",
-                "TRACY_BUILD_CSVEXPORT": "OFF",
-                "TRACY_BUILD_MERGE": "OFF"
-            }
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
       },
-      {
-        "name": "wsl2-client-debug",
-        "displayName": "[WSL2][Client] Debug",
-        "description": "Build TracyClient for WSL2 using timer fallback (Debug)",
-        "inherits": "wsl2-base",
-        "binaryDir": "${sourceDir}/out/wsl2-client-debug",
-        "cacheVariables": {
-          "CMAKE_BUILD_TYPE": "Debug",
-          "NO_STATISTICS": "OFF",
-          "NO_ISA_EXTENSIONS": "OFF",
-          "TRACY_BUILD_CAPTURE": "OFF",
-          "TRACY_BUILD_TEST": "OFF",
-          "TRACY_BUILD_PROFILER": "OFF",
-          "TRACY_BUILD_EXAMPLES": "OFF",
-          "TRACY_BUILD_IMPORT": "OFF",
-          "TRACY_BUILD_CSVEXPORT": "OFF",
-          "TRACY_BUILD_MERGE": "OFF"
-            }
-        },
-        {
-            "name": "linux-client-release",
-            "displayName": "[Linux][Client] Release",
-            "description": "Build TracyClient static library only (Release)",
-            "inherits": "linux-base",
-            "binaryDir": "${sourceDir}/out/linux-client-release",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            }
-        },
-        {
-          "name": "wsl2-client-release",
-          "displayName": "[WSL2][Client] Release",
-          "description": "Build TracyClient static library for WSL2 using timer fallback (Release)",
-          "inherits": "wsl2-base",
-          "binaryDir": "${sourceDir}/out/wsl2-client-release",
-          "cacheVariables": {
-            "CMAKE_BUILD_TYPE": "Release"
-          }
-        },
-      {
-            "name": "linux-all-debug",
-            "displayName": "[Linux][All] Debug",
-            "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge (Debug)",
-            "inherits": "linux-base",
-            "binaryDir": "${sourceDir}/out/linux-all-debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
-                "TRACY_BUILD_CAPTURE": "ON",
-                "TRACY_BUILD_TEST": "ON",
-                "TRACY_BUILD_PROFILER": "ON",
-                "TRACY_BUILD_EXAMPLES": "ON",
-                "TRACY_BUILD_IMPORT": "ON",
-                "TRACY_BUILD_CSVEXPORT": "ON",
-                "TRACY_BUILD_MERGE": "ON",
-                "NO_STATISTICS": "OFF",
-                "NO_ISA_EXTENSIONS": "OFF"
-            }
+      "cacheVariables": {
+        "CPM_SOURCE_CACHE": "${sourceDir}/.cpm-cache",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "TRACY_STATIC": "ON",
+        "TRACY_ENABLE": "ON",
+        "TRACY_NO_EXIT": "ON",
+        "LEGACY": "ON"
+      }
+    },
+    {
+      "name": "wsl2-base",
+      "hidden": true,
+      "inherits": "linux-base",
+      "condition": {
+        "type": "notEquals",
+        "lhs": "$env{WSL_INTEROP}",
+        "rhs": ""
       },
-      {
-        "name": "wsl2-all-debug",
-        "displayName": "[WSL2][All] Debug",
-        "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge with timer fallback (Debug)",
-        "inherits": "wsl2-base",
-        "binaryDir": "${sourceDir}/out/wsl2-all-debug",
-        "cacheVariables": {
-          "CMAKE_BUILD_TYPE": "Debug",
-          "TRACY_BUILD_CAPTURE": "ON",
-          "TRACY_BUILD_TEST": "ON",
-          "TRACY_BUILD_PROFILER": "ON",
-          "TRACY_BUILD_EXAMPLES": "ON",
-          "TRACY_BUILD_IMPORT": "ON",
-          "TRACY_BUILD_CSVEXPORT": "ON",
-          "TRACY_BUILD_MERGE": "ON",
-          "NO_STATISTICS": "OFF",
-          "NO_ISA_EXTENSIONS": "OFF"
-            }
+      "cacheVariables": {
+        "TRACY_TIMER_FALLBACK": "ON",
+        "TRACY_DISALLOW_HW_TIMER": "ON"
+      }
+    },
+    {
+      "name": "client-debug",
+      "displayName": "[Win][Client] Debug",
+      "description": "Build TracyClient instrumentation library (Debug)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/client-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_ENABLE": "ON"
+      }
+    },
+    {
+      "name": "client-release",
+      "displayName": "[Win][Client] Release",
+      "description": "Build TracyClient instrumentation library (Release)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/client-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_ENABLE": "ON"
+      }
+    },
+    {
+      "name": "all-debug",
+      "displayName": "[Win][All] Debug  (Client + Capture + Test)",
+      "description": "Build TracyClient, tracy-capture and tracy-test in one pass (Debug)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/all-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_ENABLE": "ON",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF"
+      }
+    },
+    {
+      "name": "all-release",
+      "displayName": "[Win][All] Release (Client + Capture + Test)",
+      "description": "Build TracyClient, tracy-capture and tracy-test in one pass (Release)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/all-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_ENABLE": "ON",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF"
+      }
+    },
+    {
+      "name": "win-all-hcomm-debug",
+      "displayName": "[Win][All][HComm] Debug (save json)",
+      "description": "Build entire project (All) with TracyHcomm JSON export enabled (Debug)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/all-hcomm-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_ENABLE": "ON",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "win-all-hcomm-release",
+      "displayName": "[Win][All][HComm] Release (save json)",
+      "description": "Build entire project (All) with TracyHcomm JSON export enabled (Release)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/all-hcomm-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_ENABLE": "ON",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "win-hcomm-debug",
+      "displayName": "[Win][HComm] Debug (save json)",
+      "description": "Build client with TracyHcomm JSON export enabled (Debug)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/win-hcomm-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_ENABLE": "ON",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "win-hcomm-release",
+      "displayName": "[Win][HComm] Release (save json)",
+      "description": "Build client with TracyHcomm JSON export enabled (Release)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/out/win-hcomm-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_ENABLE": "ON",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "linux-hcomm-debug",
+      "displayName": "[Linux][HComm] Debug (save json)",
+      "description": "Build client with TracyHcomm JSON export enabled on Linux (Debug)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-hcomm-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_ENABLE": "ON",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "linux-hcomm-release",
+      "displayName": "[Linux][HComm] Release (save json)",
+      "description": "Build client with TracyHcomm JSON export enabled on Linux (Release)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-hcomm-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_ENABLE": "ON",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "linux-all-hcomm-debug",
+      "displayName": "[Linux][All][HComm] Debug",
+      "description": "Linux All build with HComm enabled (Debug)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-all-hcomm-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "TRACY_BUILD_IMPORT": "ON",
+        "TRACY_BUILD_CSVEXPORT": "ON",
+        "TRACY_BUILD_MERGE": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "linux-all-hcomm-release",
+      "displayName": "[Linux][All][HComm] Release",
+      "description": "Linux All build with HComm enabled (Release)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-all-hcomm-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "TRACY_BUILD_IMPORT": "ON",
+        "TRACY_BUILD_CSVEXPORT": "ON",
+        "TRACY_BUILD_MERGE": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "linux-client-debug",
+      "displayName": "[Linux][Client] Debug",
+      "description": "Build TracyClient + tracy-test + tracy-profiler (Debug)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-client-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_BUILD_CAPTURE": "OFF",
+        "TRACY_BUILD_TEST": "OFF",
+        "TRACY_BUILD_PROFILER": "OFF",
+        "TRACY_BUILD_EXAMPLES": "OFF",
+        "TRACY_BUILD_IMPORT": "OFF",
+        "TRACY_BUILD_CSVEXPORT": "OFF",
+        "TRACY_BUILD_MERGE": "OFF"
+      }
+    },
+    {
+      "name": "linux-client-release",
+      "displayName": "[Linux][Client] Release",
+      "description": "Build TracyClient static library only (Release)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-client-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_BUILD_CAPTURE": "OFF",
+        "TRACY_BUILD_TEST": "OFF",
+        "TRACY_BUILD_PROFILER": "OFF",
+        "TRACY_BUILD_EXAMPLES": "OFF",
+        "TRACY_BUILD_IMPORT": "OFF",
+        "TRACY_BUILD_CSVEXPORT": "OFF",
+        "TRACY_BUILD_MERGE": "OFF"
+      }
+    },
+    {
+      "name": "linux-all-debug",
+      "displayName": "[Linux][All] Debug",
+      "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge (Debug)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-all-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "TRACY_BUILD_IMPORT": "ON",
+        "TRACY_BUILD_CSVEXPORT": "ON",
+        "TRACY_BUILD_MERGE": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF"
+      }
+    },
+    {
+      "name": "linux-all-release",
+      "displayName": "[Linux][All] Release",
+      "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge (Release)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/out/linux-all-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "TRACY_BUILD_IMPORT": "ON",
+        "TRACY_BUILD_CSVEXPORT": "ON",
+        "TRACY_BUILD_MERGE": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF"
+      }
+    },
+    {
+      "name": "wsl2-hcomm-debug",
+      "displayName": "[WSL2][HComm] Debug (save json)",
+      "description": "Build client with TracyHcomm JSON export enabled on WSL2 (Debug)",
+      "inherits": "wsl2-base",
+      "binaryDir": "${sourceDir}/out/wsl2-hcomm-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_ENABLE": "ON",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "wsl2-hcomm-release",
+      "displayName": "[WSL2][HComm] Release (save json)",
+      "description": "Build client with TracyHcomm JSON export enabled on WSL2 (Release)",
+      "inherits": "wsl2-base",
+      "binaryDir": "${sourceDir}/out/wsl2-hcomm-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_ENABLE": "ON",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "wsl2-all-hcomm-debug",
+      "displayName": "[WSL2][All][HComm] Debug",
+      "description": "WSL2 All build with HComm enabled (Debug)",
+      "inherits": "wsl2-base",
+      "binaryDir": "${sourceDir}/out/wsl2-all-hcomm-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "TRACY_BUILD_IMPORT": "ON",
+        "TRACY_BUILD_CSVEXPORT": "ON",
+        "TRACY_BUILD_MERGE": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "wsl2-all-hcomm-release",
+      "displayName": "[WSL2][All][HComm] Release",
+      "description": "WSL2 All build with HComm enabled (Release)",
+      "inherits": "wsl2-base",
+      "binaryDir": "${sourceDir}/out/wsl2-all-hcomm-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "TRACY_BUILD_IMPORT": "ON",
+        "TRACY_BUILD_CSVEXPORT": "ON",
+        "TRACY_BUILD_MERGE": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_SAVE_NO_SEND": "ON"
+      }
+    },
+    {
+      "name": "wsl2-client-debug",
+      "displayName": "[WSL2][Client] Debug",
+      "description": "Build TracyClient for WSL2 using timer fallback (Debug)",
+      "inherits": "wsl2-base",
+      "binaryDir": "${sourceDir}/out/wsl2-client-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_BUILD_CAPTURE": "OFF",
+        "TRACY_BUILD_TEST": "OFF",
+        "TRACY_BUILD_PROFILER": "OFF",
+        "TRACY_BUILD_EXAMPLES": "OFF",
+        "TRACY_BUILD_IMPORT": "OFF",
+        "TRACY_BUILD_CSVEXPORT": "OFF",
+        "TRACY_BUILD_MERGE": "OFF"
+      }
+    },
+    {
+      "name": "wsl2-client-release",
+      "displayName": "[WSL2][Client] Release",
+      "description": "Build TracyClient static library for WSL2 using timer fallback (Release)",
+      "inherits": "wsl2-base",
+      "binaryDir": "${sourceDir}/out/wsl2-client-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF",
+        "TRACY_BUILD_CAPTURE": "OFF",
+        "TRACY_BUILD_TEST": "OFF",
+        "TRACY_BUILD_PROFILER": "OFF",
+        "TRACY_BUILD_EXAMPLES": "OFF",
+        "TRACY_BUILD_IMPORT": "OFF",
+        "TRACY_BUILD_CSVEXPORT": "OFF",
+        "TRACY_BUILD_MERGE": "OFF"
+      }
+    },
+    {
+      "name": "wsl2-all-debug",
+      "displayName": "[WSL2][All] Debug",
+      "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge with timer fallback (Debug)",
+      "inherits": "wsl2-base",
+      "binaryDir": "${sourceDir}/out/wsl2-all-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "TRACY_BUILD_IMPORT": "ON",
+        "TRACY_BUILD_CSVEXPORT": "ON",
+        "TRACY_BUILD_MERGE": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF"
+      }
+    },
+    {
+      "name": "wsl2-all-release",
+      "displayName": "[WSL2][All] Release",
+      "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge with timer fallback (Release)",
+      "inherits": "wsl2-base",
+      "binaryDir": "${sourceDir}/out/wsl2-all-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_BUILD_CAPTURE": "ON",
+        "TRACY_BUILD_TEST": "ON",
+        "TRACY_BUILD_PROFILER": "ON",
+        "TRACY_BUILD_EXAMPLES": "ON",
+        "TRACY_BUILD_IMPORT": "ON",
+        "TRACY_BUILD_CSVEXPORT": "ON",
+        "TRACY_BUILD_MERGE": "ON",
+        "NO_STATISTICS": "OFF",
+        "NO_ISA_EXTENSIONS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "client-debug-build",
+      "displayName": "[Win][Client] Debug Build",
+      "configurePreset": "client-debug"
+    },
+    {
+      "name": "client-release-build",
+      "displayName": "[Win][Client] Release Build",
+      "configurePreset": "client-release"
+    },
+    {
+      "name": "all-debug-build",
+      "displayName": "[Win][All] Debug Build",
+      "configurePreset": "all-debug"
+    },
+    {
+      "name": "all-release-build",
+      "displayName": "[Win][All] Release Build",
+      "configurePreset": "all-release"
+    },
+    {
+      "name": "all-hcomm-debug-build",
+      "displayName": "[Win][All][HComm] Debug Build",
+      "configurePreset": "win-all-hcomm-debug"
+    },
+    {
+      "name": "all-hcomm-release-build",
+      "displayName": "[Win][All][HComm] Release Build",
+      "configurePreset": "win-all-hcomm-release"
+    },
+    {
+      "name": "win-hcomm-debug-build",
+      "displayName": "[Win][HComm] Debug Build",
+      "configurePreset": "win-hcomm-debug"
+    },
+    {
+      "name": "win-hcomm-release-build",
+      "displayName": "[Win][HComm] Release Build",
+      "configurePreset": "win-hcomm-release"
+    },
+    {
+      "name": "linux-client-debug-build",
+      "displayName": "[Linux][Client] Debug Build",
+      "configurePreset": "linux-client-debug"
+    },
+    {
+      "name": "linux-client-release-build",
+      "displayName": "[Linux][Client] Release Build",
+      "configurePreset": "linux-client-release"
+    },
+    {
+      "name": "linux-all-debug-build",
+      "displayName": "[Linux][All] Debug Build",
+      "configurePreset": "linux-all-debug"
+    },
+    {
+      "name": "linux-all-release-build",
+      "displayName": "[Linux][All] Release Build",
+      "configurePreset": "linux-all-release"
+    },
+    {
+      "name": "linux-all-hcomm-debug-build",
+      "displayName": "[Linux][All][HComm] Debug Build",
+      "configurePreset": "linux-all-hcomm-debug"
+    },
+    {
+      "name": "linux-all-hcomm-release-build",
+      "displayName": "[Linux][All][HComm] Release Build",
+      "configurePreset": "linux-all-hcomm-release"
+    },
+    {
+      "name": "linux-hcomm-debug-build",
+      "displayName": "[Linux][HComm] Debug Build",
+      "configurePreset": "linux-hcomm-debug"
+    },
+    {
+      "name": "linux-hcomm-release-build",
+      "displayName": "[Linux][HComm] Release Build",
+      "configurePreset": "linux-hcomm-release"
+    },
+    {
+      "name": "wsl2-client-debug-build",
+      "displayName": "[WSL2][Client] Debug Build",
+      "configurePreset": "wsl2-client-debug"
+    },
+    {
+      "name": "wsl2-client-release-build",
+      "displayName": "[WSL2][Client] Release Build",
+      "configurePreset": "wsl2-client-release"
+    },
+    {
+      "name": "wsl2-all-debug-build",
+      "displayName": "[WSL2][All] Debug Build",
+      "configurePreset": "wsl2-all-debug"
+    },
+    {
+      "name": "wsl2-all-release-build",
+      "displayName": "[WSL2][All] Release Build",
+      "configurePreset": "wsl2-all-release"
+    },
+    {
+      "name": "wsl2-all-hcomm-debug-build",
+      "displayName": "[WSL2][All][HComm] Debug Build",
+      "configurePreset": "wsl2-all-hcomm-debug"
+    },
+    {
+      "name": "wsl2-all-hcomm-release-build",
+      "displayName": "[WSL2][All][HComm] Release Build",
+      "configurePreset": "wsl2-all-hcomm-release"
+    },
+    {
+      "name": "wsl2-hcomm-debug-build",
+      "displayName": "[WSL2][HComm] Debug Build",
+      "configurePreset": "wsl2-hcomm-debug"
+    },
+    {
+      "name": "wsl2-hcomm-release-build",
+      "displayName": "[WSL2][HComm] Release Build",
+      "configurePreset": "wsl2-hcomm-release"
+    }
+  ],
+  "packagePresets": [
+    {
+      "name": "win-client-hcomm-package-debug-pkg",
+      "displayName": "[Win][Client][HComm] Debug TGZ Package",
+      "configurePreset": "win-hcomm-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "win-client-hcomm-package-release-pkg",
+      "displayName": "[Win][Client][HComm] Release TGZ Package",
+      "configurePreset": "win-hcomm-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "win-all-hcomm-package-debug-pkg",
+      "displayName": "[Win][All][HComm] Debug TGZ Package",
+      "configurePreset": "win-all-hcomm-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "win-all-hcomm-package-release-pkg",
+      "displayName": "[Win][All][HComm] Release TGZ Package",
+      "configurePreset": "win-all-hcomm-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "win-client-package-debug-pkg",
+      "displayName": "[Win][Client] Debug TGZ Package",
+      "configurePreset": "client-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "win-client-package-release-pkg",
+      "displayName": "[Win][Client] Release TGZ Package",
+      "configurePreset": "client-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "win-all-package-debug-pkg",
+      "displayName": "[Win][All] Debug TGZ Package",
+      "configurePreset": "all-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "win-all-package-release-pkg",
+      "displayName": "[Win][All] Release TGZ Package",
+      "configurePreset": "all-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "linux-client-package-debug-pkg",
+      "displayName": "[Linux][Client] Debug TGZ Package",
+      "configurePreset": "linux-client-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "linux-client-package-release-pkg",
+      "displayName": "[Linux][Client] Release TGZ Package",
+      "configurePreset": "linux-client-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "linux-all-package-debug-pkg",
+      "displayName": "[Linux][All] Debug TGZ Package",
+      "configurePreset": "linux-all-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "linux-all-package-release-pkg",
+      "displayName": "[Linux][All] Release TGZ Package",
+      "configurePreset": "linux-all-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "linux-client-hcomm-package-debug-pkg",
+      "displayName": "[Linux][Client][HComm] Debug TGZ Package",
+      "configurePreset": "linux-hcomm-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "linux-client-hcomm-package-release-pkg",
+      "displayName": "[Linux][Client][HComm] Release TGZ Package",
+      "configurePreset": "linux-hcomm-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "linux-all-hcomm-package-debug-pkg",
+      "displayName": "[Linux][All][HComm] Debug TGZ Package",
+      "configurePreset": "linux-all-hcomm-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "linux-all-hcomm-package-release-pkg",
+      "displayName": "[Linux][All][HComm] Release TGZ Package",
+      "configurePreset": "linux-all-hcomm-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "wsl2-client-hcomm-package-debug-pkg",
+      "displayName": "[WSL2][Client][HComm] Debug TGZ Package",
+      "configurePreset": "wsl2-hcomm-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "wsl2-client-hcomm-package-release-pkg",
+      "displayName": "[WSL2][Client][HComm] Release TGZ Package",
+      "configurePreset": "wsl2-hcomm-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "wsl2-all-hcomm-package-debug-pkg",
+      "displayName": "[WSL2][All][HComm] Debug TGZ Package",
+      "configurePreset": "wsl2-all-hcomm-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "wsl2-all-hcomm-package-release-pkg",
+      "displayName": "[WSL2][All][HComm] Release TGZ Package",
+      "configurePreset": "wsl2-all-hcomm-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "wsl2-client-package-debug-pkg",
+      "displayName": "[WSL2][Client] Debug TGZ Package",
+      "configurePreset": "wsl2-client-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "wsl2-client-package-release-pkg",
+      "displayName": "[WSL2][Client] Release TGZ Package",
+      "configurePreset": "wsl2-client-release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "wsl2-all-package-debug-pkg",
+      "displayName": "[WSL2][All] Debug TGZ Package",
+      "configurePreset": "wsl2-all-debug",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "wsl2-all-package-release-pkg",
+      "displayName": "[WSL2][All] Release TGZ Package",
+      "configurePreset": "wsl2-all-release",
+      "generators": [
+        "TGZ"
+      ]
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "linux-client-debug",
+      "displayName": "[Linux][Client] Debug Package: configure → build → CPack TGZ",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-client-debug"
         },
         {
-            "name": "linux-all-release",
-            "displayName": "[Linux][All] Release",
-            "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge (Release)",
-            "inherits": "linux-base",
-            "binaryDir": "${sourceDir}/out/linux-all-release",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "TRACY_BUILD_CAPTURE": "ON",
-                "TRACY_BUILD_TEST": "ON",
-                "TRACY_BUILD_PROFILER": "ON",
-                "TRACY_BUILD_EXAMPLES": "ON",
-                "TRACY_BUILD_IMPORT": "ON",
-                "TRACY_BUILD_CSVEXPORT": "ON",
-                "TRACY_BUILD_MERGE": "ON",
-                "NO_STATISTICS": "OFF",
-                "NO_ISA_EXTENSIONS": "OFF"
-            }
+          "type": "build",
+          "name": "linux-client-debug-build"
         },
-      {
-        "name": "wsl2-all-release",
-        "displayName": "[WSL2][All] Release",
-        "description": "Client .a + Capture + Test + Examples + Profiler + Import + CsvExport + Merge with timer fallback (Release)",
-        "inherits": "wsl2-base",
-        "binaryDir": "${sourceDir}/out/wsl2-all-release",
-        "cacheVariables": {
-          "CMAKE_BUILD_TYPE": "Release",
-          "TRACY_BUILD_CAPTURE": "ON",
-          "TRACY_BUILD_TEST": "ON",
-          "TRACY_BUILD_PROFILER": "ON",
-          "TRACY_BUILD_EXAMPLES": "ON",
-          "TRACY_BUILD_IMPORT": "ON",
-          "TRACY_BUILD_CSVEXPORT": "ON",
-          "TRACY_BUILD_MERGE": "ON",
-          "NO_STATISTICS": "OFF",
-          "NO_ISA_EXTENSIONS": "OFF"
-            }
+        {
+          "type": "package",
+          "name": "linux-client-package-debug-pkg"
         }
-    ],
-    "buildPresets": [
+      ]
+    },
+    {
+      "name": "linux-client-release",
+      "displayName": "[Linux][Client] Release Package: configure → build → CPack TGZ",
+      "steps": [
         {
-            "name": "client-debug-build",
-            "displayName": "[Win][Client] Debug Build",
-            "configurePreset": "client-debug"
-        },
-        {
-            "name": "client-release-build",
-            "displayName": "[Win][Client] Release Build",
-            "configurePreset": "client-release"
+          "type": "configure",
+          "name": "linux-client-release"
         },
         {
-            "name": "all-debug-build",
-            "displayName": "[Win][All] Debug Build",
-            "configurePreset": "all-debug"
+          "type": "build",
+          "name": "linux-client-release-build"
         },
         {
-            "name": "all-release-build",
-            "displayName": "[Win][All] Release Build",
-            "configurePreset": "all-release"
-        },
-        {
-            "name": "linux-client-debug-build",
-            "displayName": "[Linux][Client] Debug Build",
-            "configurePreset": "linux-client-debug"
-        },
-        {
-          "name": "wsl2-client-debug-build",
-          "displayName": "[WSL2][Client] Debug Build",
-          "configurePreset": "wsl2-client-debug"
-        },
-      {
-            "name": "linux-client-release-build",
-            "displayName": "[Linux][Client] Release Build",
-            "configurePreset": "linux-client-release"
-        },
-        {
-          "name": "wsl2-client-release-build",
-          "displayName": "[WSL2][Client] Release Build",
-          "configurePreset": "wsl2-client-release"
-        },
-      {
-            "name": "linux-all-debug-build",
-            "displayName": "[Linux][All] Debug Build",
-            "configurePreset": "linux-all-debug"
-        },
-        {
-          "name": "wsl2-all-debug-build",
-          "displayName": "[WSL2][All] Debug Build",
-          "configurePreset": "wsl2-all-debug"
-        },
-      {
-            "name": "linux-all-release-build",
-            "displayName": "[Linux][All] Release Build",
-            "configurePreset": "linux-all-release"
-      },
-      {
-        "name": "wsl2-all-release-build",
-        "displayName": "[WSL2][All] Release Build",
-        "configurePreset": "wsl2-all-release"
+          "type": "package",
+          "name": "linux-client-package-release-pkg"
         }
-    ],
-    "testPresets": [
+      ]
+    },
+    {
+      "name": "linux-all-debug",
+      "displayName": "[Linux][All] Debug Package: configure → build → CPack TGZ",
+      "steps": [
         {
-            "name": "linux-test-debug-run",
-            "displayName": "[Linux][Test] Debug Run",
-            "configurePreset": "linux-all-debug",
-            "output": {
-                "outputOnFailure": true
-            }
+          "type": "configure",
+          "name": "linux-all-debug"
         },
         {
-            "name": "linux-test-release-run",
-            "displayName": "[Linux][Test] Release Run",
-            "configurePreset": "linux-all-release",
-            "output": {
-                "outputOnFailure": true
-            }
+          "type": "build",
+          "name": "linux-all-debug-build"
         },
-      {
-        "name": "wsl2-test-debug-run",
-        "displayName": "[WSL2][Test] Debug Run",
-        "configurePreset": "wsl2-all-debug",
-        "output": {
-          "outputOnFailure": true
+        {
+          "type": "package",
+          "name": "linux-all-package-debug-pkg"
         }
-      },
-      {
-        "name": "wsl2-test-release-run",
-        "displayName": "[WSL2][Test] Release Run",
-        "configurePreset": "wsl2-all-release",
-        "output": {
-          "outputOnFailure": true
-            }
+      ]
+    },
+    {
+      "name": "linux-all-release",
+      "displayName": "[Linux][All] Release Package: configure → build → CPack TGZ",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-all-release"
+        },
+        {
+          "type": "build",
+          "name": "linux-all-release-build"
+        },
+        {
+          "type": "package",
+          "name": "linux-all-package-release-pkg"
         }
-    ],
-    "packagePresets": [
+      ]
+    },
+    {
+      "name": "linux-client-hcomm-debug",
+      "displayName": "[Linux][Client][HComm] Debug Package",
+      "steps": [
         {
-            "name": "linux-client-package-debug-pkg",
-            "displayName": "[Linux][Client] Debug TGZ Package",
-            "configurePreset": "linux-client-debug",
-            "generators": [
-                "TGZ"
-            ]
+          "type": "configure",
+          "name": "linux-hcomm-debug"
         },
         {
-            "name": "linux-client-package-release-pkg",
-            "displayName": "[Linux][Client] Release TGZ Package",
-            "configurePreset": "linux-client-release",
-            "generators": [
-                "TGZ"
-            ]
+          "type": "build",
+          "name": "linux-hcomm-debug-build"
         },
         {
-            "name": "linux-all-package-debug-pkg",
-            "displayName": "[Linux][All] Debug TGZ Package",
-            "configurePreset": "linux-all-debug",
-            "generators": [
-                "TGZ"
-            ]
-        },
-        {
-            "name": "linux-all-package-release-pkg",
-            "displayName": "[Linux][All] Release TGZ Package",
-            "configurePreset": "linux-all-release",
-            "generators": [
-                "TGZ"
-            ]
+          "type": "package",
+          "name": "linux-client-hcomm-package-debug-pkg"
         }
-    ],
-    "workflowPresets": [
+      ]
+    },
+    {
+      "name": "linux-client-hcomm-release",
+      "displayName": "[Linux][Client][HComm] Release Package",
+      "steps": [
         {
-            "name": "linux-client-debug",
-            "displayName": "[Linux][Client] Debug Package: configure → build → CPack TGZ",
-            "steps": [
-                {
-                    "type": "configure",
-                    "name": "linux-client-debug"
-                },
-                {
-                    "type": "build",
-                    "name": "linux-client-debug-build"
-                },
-                {
-                    "type": "package",
-                    "name": "linux-client-package-debug-pkg"
-                }
-            ]
+          "type": "configure",
+          "name": "linux-hcomm-release"
         },
         {
-            "name": "linux-client-release",
-            "displayName": "[Linux][Client] Release Package: configure → build → CPack TGZ",
-            "steps": [
-                {
-                    "type": "configure",
-                    "name": "linux-client-release"
-                },
-                {
-                    "type": "build",
-                    "name": "linux-client-release-build"
-                },
-                {
-                    "type": "package",
-                    "name": "linux-client-package-release-pkg"
-                }
-            ]
+          "type": "build",
+          "name": "linux-hcomm-release-build"
         },
         {
-            "name": "linux-all-debug",
-            "displayName": "[Linux][All] Debug Package: configure → build → CPack TGZ",
-            "steps": [
-                {
-                    "type": "configure",
-                    "name": "linux-all-debug"
-                },
-                {
-                    "type": "build",
-                    "name": "linux-all-debug-build"
-                },
-                {
-                    "type": "package",
-                    "name": "linux-all-package-debug-pkg"
-                }
-            ]
-        },
-        {
-            "name": "linux-all-release",
-            "displayName": "[Linux][All] Release Package: configure → build → CPack TGZ",
-            "steps": [
-                {
-                    "type": "configure",
-                    "name": "linux-all-release"
-                },
-                {
-                    "type": "build",
-                    "name": "linux-all-release-build"
-                },
-                {
-                    "type": "package",
-                    "name": "linux-all-package-release-pkg"
-                }
-            ]
+          "type": "package",
+          "name": "linux-client-hcomm-package-release-pkg"
         }
-    ]
+      ]
+    },
+    {
+      "name": "linux-all-hcomm-debug",
+      "displayName": "[Linux][All][HComm] Debug Package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-all-hcomm-debug"
+        },
+        {
+          "type": "build",
+          "name": "linux-all-hcomm-debug-build"
+        },
+        {
+          "type": "package",
+          "name": "linux-all-hcomm-package-debug-pkg"
+        }
+      ]
+    },
+    {
+      "name": "linux-all-hcomm-release",
+      "displayName": "[Linux][All][HComm] Release Package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "linux-all-hcomm-release"
+        },
+        {
+          "type": "build",
+          "name": "linux-all-hcomm-release-build"
+        },
+        {
+          "type": "package",
+          "name": "linux-all-hcomm-package-release-pkg"
+        }
+      ]
+    },
+    {
+      "name": "win-client-hcomm-debug",
+      "displayName": "[Win][Client][HComm] Debug Package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "win-hcomm-debug"
+        },
+        {
+          "type": "build",
+          "name": "win-hcomm-debug-build"
+        },
+        {
+          "type": "package",
+          "name": "win-client-hcomm-package-debug-pkg"
+        }
+      ]
+    },
+    {
+      "name": "win-client-hcomm-release",
+      "displayName": "[Win][Client][HComm] Release Package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "win-hcomm-release"
+        },
+        {
+          "type": "build",
+          "name": "win-hcomm-release-build"
+        },
+        {
+          "type": "package",
+          "name": "win-client-hcomm-package-release-pkg"
+        }
+      ]
+    },
+    {
+      "name": "win-all-hcomm-debug",
+      "displayName": "[Win][All][HComm] Debug Package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "win-all-hcomm-debug"
+        },
+        {
+          "type": "build",
+          "name": "all-hcomm-debug-build"
+        },
+        {
+          "type": "package",
+          "name": "win-all-hcomm-package-debug-pkg"
+        }
+      ]
+    },
+    {
+      "name": "win-all-hcomm-release",
+      "displayName": "[Win][All][HComm] Release Package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "win-all-hcomm-release"
+        },
+        {
+          "type": "build",
+          "name": "all-hcomm-release-build"
+        },
+        {
+          "type": "package",
+          "name": "win-all-hcomm-package-release-pkg"
+        }
+      ]
+    },
+    {
+      "name": "win-client-debug",
+      "displayName": "[Win][Client] Debug: configure → build → package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "client-debug"
+        },
+        {
+          "type": "build",
+          "name": "client-debug-build"
+        },
+        {
+          "type": "package",
+          "name": "win-client-package-debug-pkg"
+        }
+      ]
+    },
+    {
+      "name": "win-client-release",
+      "displayName": "[Win][Client] Release: configure → build → package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "client-release"
+        },
+        {
+          "type": "build",
+          "name": "client-release-build"
+        },
+        {
+          "type": "package",
+          "name": "win-client-package-release-pkg"
+        }
+      ]
+    },
+    {
+      "name": "win-all-debug",
+      "displayName": "[Win][All] Debug: configure → build → package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "all-debug"
+        },
+        {
+          "type": "build",
+          "name": "all-debug-build"
+        },
+        {
+          "type": "package",
+          "name": "win-all-package-debug-pkg"
+        }
+      ]
+    },
+    {
+      "name": "win-all-release",
+      "displayName": "[Win][All] Release: configure → build → package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "all-release"
+        },
+        {
+          "type": "build",
+          "name": "all-release-build"
+        },
+        {
+          "type": "package",
+          "name": "win-all-package-release-pkg"
+        }
+      ]
+    },
+    {
+      "name": "wsl2-client-hcomm-debug",
+      "displayName": "[WSL2][Client][HComm] Debug Package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "wsl2-hcomm-debug"
+        },
+        {
+          "type": "build",
+          "name": "wsl2-hcomm-debug-build"
+        },
+        {
+          "type": "package",
+          "name": "wsl2-client-hcomm-package-debug-pkg"
+        }
+      ]
+    },
+    {
+      "name": "wsl2-client-hcomm-release",
+      "displayName": "[WSL2][Client][HComm] Release Package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "wsl2-hcomm-release"
+        },
+        {
+          "type": "build",
+          "name": "wsl2-hcomm-release-build"
+        },
+        {
+          "type": "package",
+          "name": "wsl2-client-hcomm-package-release-pkg"
+        }
+      ]
+    },
+    {
+      "name": "wsl2-all-hcomm-debug",
+      "displayName": "[WSL2][All][HComm] Debug Package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "wsl2-all-hcomm-debug"
+        },
+        {
+          "type": "build",
+          "name": "wsl2-all-hcomm-debug-build"
+        },
+        {
+          "type": "package",
+          "name": "wsl2-all-hcomm-package-debug-pkg"
+        }
+      ]
+    },
+    {
+      "name": "wsl2-all-hcomm-release",
+      "displayName": "[WSL2][All][HComm] Release Package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "wsl2-all-hcomm-release"
+        },
+        {
+          "type": "build",
+          "name": "wsl2-all-hcomm-release-build"
+        },
+        {
+          "type": "package",
+          "name": "wsl2-all-hcomm-package-release-pkg"
+        }
+      ]
+    },
+    {
+      "name": "wsl2-client-debug",
+      "displayName": "[WSL2][Client] Debug: configure → build → package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "wsl2-client-debug"
+        },
+        {
+          "type": "build",
+          "name": "wsl2-client-debug-build"
+        },
+        {
+          "type": "package",
+          "name": "wsl2-client-package-debug-pkg"
+        }
+      ]
+    },
+    {
+      "name": "wsl2-client-release",
+      "displayName": "[WSL2][Client] Release: configure → build → package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "wsl2-client-release"
+        },
+        {
+          "type": "build",
+          "name": "wsl2-client-release-build"
+        },
+        {
+          "type": "package",
+          "name": "wsl2-client-package-release-pkg"
+        }
+      ]
+    },
+    {
+      "name": "wsl2-all-debug",
+      "displayName": "[WSL2][All] Debug: configure → build → package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "wsl2-all-debug"
+        },
+        {
+          "type": "build",
+          "name": "wsl2-all-debug-build"
+        },
+        {
+          "type": "package",
+          "name": "wsl2-all-package-debug-pkg"
+        }
+      ]
+    },
+    {
+      "name": "wsl2-all-release",
+      "displayName": "[WSL2][All] Release: configure → build → package",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "wsl2-all-release"
+        },
+        {
+          "type": "build",
+          "name": "wsl2-all-release-build"
+        },
+        {
+          "type": "package",
+          "name": "wsl2-all-package-release-pkg"
+        }
+      ]
+    }
+  ]
 }

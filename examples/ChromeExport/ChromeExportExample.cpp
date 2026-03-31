@@ -6,17 +6,15 @@
 //   tracy-import-chrome trace.json trace.tracy
 //   tracy-profiler trace.tracy
 
-#include <tracy/TracyHcomm.hpp>
 #include <cstdio>
-#include <cmath>
 #include <thread>
-#include <cstdlib>
+#include <tracy/TracyHcomm.hpp>
 
 // ── Simulated workloads ─────────────────────────────────────────────────────
 
-void BusyWork( int iterations )
+void BusyWork( const int iterations )
 {
-    ChromeZoneScoped;
+    ZoneScoped; // NOLINT(*-const-correctness)
     volatile double sum = 0;
     for( int i = 0; i < iterations; i++ )
         sum += std::sin( static_cast<double>(i) );
@@ -24,38 +22,34 @@ void BusyWork( int iterations )
 
 void ParseData()
 {
-    ChromeZoneScoped;
+    ZoneScoped; // NOLINT(*-const-correctness)
     BusyWork( 50000 );
 }
 
 void CompressData()
 {
-    ChromeZoneScoped;
+    ZoneScoped; // NOLINT(*-const-correctness)
     BusyWork( 80000 );
 }
 
-void ProcessFrame( int frameId )
+void ProcessFrame( const int frameId )
 {
-    ChromeZoneNamed( "ProcessFrame" );
-
+    ZoneScopedN( "ProcessFrame" ); // NOLINT(*-const-correctness)
     ParseData();
     CompressData();
-
-    ChromePlot( "fps", 60.0 - frameId * 0.5 );
-    ChromePlot( "memory_bytes", 1024 * 1024 * (frameId + 1) );
-
-    ChromeFrameMark;
+    TracyPlot( "fps", 60.0 - frameId * 0.5 );
+    FrameMark;
 }
 
-void WorkerThread( int id )
+void WorkerThread( const int id )
 {
     char name[32];
     snprintf( name, sizeof(name), "Worker_%d", id );
-    ChromeSetThreadName( name );
+    tracy::SetThreadName( name );
 
     for( int i = 0; i < 5; i++ )
     {
-        ChromeZoneNamed( "WorkerTask" );
+        ZoneScopedN( "WorkerTask" ); // NOLINT(*-const-correctness)
         BusyWork( 30000 + id * 10000 );
     }
 }
@@ -68,14 +62,15 @@ int main()
     _putenv_s( "ASCEND_PROCESS_LOG_PATH", "C:\\tmp\\ascend_log" );
 #endif
     fprintf( stderr, "Running test...\n" );
-    for( int i = 0; i < 10; i++ )
+    for( int i = 0; i < 2; i++ )
         ProcessFrame( i );
-    std::thread t1( WorkerThread, 0 );
-    std::thread t2( WorkerThread, 1 );
-    std::thread t3( WorkerThread, 2 );
-    t1.join();
-    t2.join();
-    t3.join();
+    // std::thread t1( WorkerThread, 0 );
+    // std::thread t2( WorkerThread, 1 );
+    // std::thread t3( WorkerThread, 2 );
+    // t1.join();
+    // t2.join();
+    // t3.join();
+    std::this_thread::sleep_for( std::chrono::minutes( 1 ) );
     ChromeTraceDump();
     return 0;
 }

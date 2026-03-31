@@ -160,6 +160,13 @@ if(rocprofiler-sdk_FOUND)
     set_option(TRACY_ROCPROF_CALIBRATION "[advanced] Use continuous calibration of the Rocprof GPU time." OFF)
     mark_as_advanced(TRACY_ROCPROF_CALIBRATION)
 endif()
+set_option(TRACY_SAVE_NO_SEND "Enable Chrome JSON export (TracyHcomm)" OFF)
+if (TRACY_SAVE_NO_SEND)
+    target_compile_definitions(TracyClient PUBLIC TRACY_SAVE_NO_SEND)
+    message(STATUS "TRACY_SAVE_NO_SEND: ON")
+else ()
+    message(STATUS "TRACY_SAVE_NO_SEND: OFF")
+endif ()
 
 # handle incompatible combinations
 if(TRACY_MANUAL_LIFETIME AND NOT TRACY_DELAYED_INIT)

@@ -83,6 +83,9 @@
 #include "TracyArmCpuTable.hpp"
 #include "TracySysTrace.hpp"
 #include "../tracy/TracyC.h"
+#  ifdef TRACY_SAVE_NO_SEND
+#    include "TracyChromeExport.hpp"
+#  endif
 
 #if defined TRACY_MANUAL_LIFETIME && !defined(TRACY_DELAYED_INIT)
 #  error "TRACY_MANUAL_LIFETIME requires enabled TRACY_DELAYED_INIT"
@@ -1816,6 +1819,7 @@ void Profiler::Worker()
 
     ListenSocket listen;
     bool isListening = false;
+#  ifndef TRACY_SAVE_NO_SEND
     if( !dataPortSearch )
     {
         isListening = listen.Listen( dataPort, 4 );
@@ -1832,18 +1836,47 @@ void Profiler::Worker()
             }
         }
     }
+#else
+    // In save-no-send (offline) mode don't create a listening socket —
+    // the worker should not block on Accept() when no server is available.
+    isListening = false;
+#endif
     if( !isListening )
     {
         for(;;)
         {
             if( ShouldExit() )
             {
+#  ifdef TRACY_SAVE_NO_SEND
+                for( ;; )
+                {
+                    const auto s = Dequeue( token );
+                    const auto ss = DequeueSerial();
+                    if( s == DequeueStatus::QueueEmpty && ss == DequeueStatus::QueueEmpty )
+                    {
+                        if( m_bufferOffset != m_bufferStart ) CommitData();
+                        break;
+                    }
+        // optional small sleep to avoid tight spin
+                    std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+                }
+#  endif
                 m_shutdownFinished.store( true, std::memory_order_relaxed );
                 return;
             }
 
+#if defined( TRACY_SAVE_NO_SEND ) && defined( TRACY_ENABLE )
+            const auto status = Dequeue( token );
+            const auto serialStatus = DequeueSerial();
+            if( status == DequeueStatus::QueueEmpty && serialStatus == DequeueStatus::QueueEmpty )
+            {
+                if( m_bufferOffset != m_bufferStart ) CommitData();
+                std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+            }
+#  else
             ClearQueues( token );
             std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+#endif
         }
     }
 
@@ -3270,7 +3303,12 @@ bool Profiler::SendData( const char* data, size_t len )
 {
     const lz4sz_t lz4sz = LZ4_compress_fast_continue( (LZ4_stream_t*)m_stream, data, m_lz4Buf + sizeof( lz4sz_t ), (int)len, LZ4Size, 1 );
     memcpy( m_lz4Buf, &lz4sz, sizeof( lz4sz ) );
+#  if defined( TRACY_SAVE_NO_SEND ) && defined( TRACY_ENABLE )
+    tracy_dump::SaveProfilerData( m_lz4Buf, lz4sz + sizeof( lz4sz_t ) );
+    return true;
+#else
     return m_sock->Send( m_lz4Buf, lz4sz + sizeof( lz4sz_t ) ) != -1;
+#endif
 }
 
 void Profiler::SendString( uint64_t str, const char* ptr, size_t len, QueueType type )
