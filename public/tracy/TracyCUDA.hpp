@@ -1110,6 +1110,11 @@ namespace tracy
             {
                 ZoneNamedN(kernel, "tracy::CUDACtx::DoProcessDeviceEvent[malloc/free]", instrument);
                 CUpti_ActivityMemory3* memory3 = (CUpti_ActivityMemory3*)record;
+                // NOTE: CUpti_ActivityMemory3 has no graphId field, so matchGraphActivityToAPICall
+                // cannot be used here. Graph-launched memory alloc nodes (cudaGraphAddMemAllocNode)
+                // share the launch's correlationId and CUPTI emits multiple MEMORY2 records per node.
+                // The first record consumes the cudaCallSiteInfo entry; subsequent ones will fire a
+                // spurious matchError and skip memory tracking. This is a known limitation.
                 APICallInfo apiCall;
                 if (!matchActivityToAPICall(memory3->correlationId, apiCall)) {
                     return matchError(memory3->correlationId, "MEMORY");
