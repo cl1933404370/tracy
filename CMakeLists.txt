@@ -5,6 +5,8 @@ include(cmake/version.cmake)
 
 project(Tracy LANGUAGES CXX VERSION ${TRACY_VERSION_STRING})
 
+include(CTest)
+
 file(GENERATE OUTPUT .gitignore CONTENT "*")
 
 if(${BUILD_SHARED_LIBS})
@@ -152,6 +154,267 @@ if(rocprofiler-sdk_FOUND)
     set_option(TRACY_ROCPROF_CALIBRATION "[advanced] Use continuous calibration of the Rocprof GPU time." OFF)
     mark_as_advanced(TRACY_ROCPROF_CALIBRATION)
 endif()
+set_option(TRACY_SAVE_NO_SEND "Enable TracyLite no-send Perfetto export (TracyHcomm)" OFF)
+set_option(TRACYLITE_PERFETTO_COMPACT_EXPORT "Use compact TracyLite Perfetto export (smaller output, fewer debug fields)" OFF)
+if (TRACY_SAVE_NO_SEND)
+    target_compile_definitions(TracyClient PUBLIC TRACY_SAVE_NO_SEND)
+
+    # ── Perfetto SDK acquisition ─────────────────────────────────────────
+    #
+    # Strategy (unified for all compilers, including MSVC):
+    #   1. Try online: auto-detect latest tag or use user-pinned tag.
+    #   2. Download via CPM (git clone):
+    #      a. ≤v49: use pre-built sdk/perfetto.cc directly.
+    #      b. v50+: try gen_amalgamated (GCC/Clang only, requires Python+GN).
+    #   3. If still no SDK, download perfetto-cpp-sdk-src.zip from GitHub
+    #      Releases (works on all platforms, no gen_amalgamated needed).
+    #   4. Fallback to bundled offline SDK.
+    #
+    set(TRACYLITE_PERFETTO_TAG "" CACHE STRING
+        "Perfetto SDK git tag (empty = auto-detect latest)")
+    set(_perfetto_offline_dir "${CMAKE_CURRENT_SOURCE_DIR}/scripts/perfetto-sdk-offline")
+    set(_perfetto_sdk_dir "")
+    set(_perfetto_version "unknown")
+
+    # ── Helper: use offline SDK ──────────────────────────────────────────
+    macro(_use_perfetto_offline)
+        if(EXISTS "${_perfetto_offline_dir}/perfetto.cc"
+           AND EXISTS "${_perfetto_offline_dir}/perfetto.h")
+            set(_perfetto_sdk_dir "${_perfetto_offline_dir}")
+            if(EXISTS "${_perfetto_offline_dir}/VERSION")
+                file(READ "${_perfetto_offline_dir}/VERSION" _perfetto_version)
+                string(STRIP "${_perfetto_version}" _perfetto_version)
+            else()
+                set(_perfetto_version "v49.0-offline")
+            endif()
+            message(STATUS "Perfetto SDK: using offline (${_perfetto_version})")
+        endif()
+    endmacro()
+
+    # ── All compilers: try online, fallback to offline ───────────────────
+    set(_resolved_tag "${TRACYLITE_PERFETTO_TAG}")
+    set(_network_ok FALSE)
+
+    if(NOT _resolved_tag)
+        # Auto-detect latest release from GitHub API (10s timeout).
+        set(_api_file "${CMAKE_BINARY_DIR}/_perfetto_latest_release.json")
+        file(DOWNLOAD
+            "https://api.github.com/repos/google/perfetto/releases/latest"
+            "${_api_file}"
+            TIMEOUT 10
+            STATUS _api_status
+        )
+        list(GET _api_status 0 _api_rc)
+        if(_api_rc EQUAL 0 AND EXISTS "${_api_file}")
+            file(READ "${_api_file}" _api_json)
+            string(REGEX MATCH "\"tag_name\"[ \t\n]*:[ \t\n]*\"([^\"]+)\"" _tag_match "${_api_json}")
+            if(CMAKE_MATCH_1)
+                set(_resolved_tag "${CMAKE_MATCH_1}")
+                set(_network_ok TRUE)
+                message(STATUS "Perfetto SDK: latest release is ${_resolved_tag}")
+            endif()
+        endif()
+        if(NOT _resolved_tag)
+            message(STATUS "Perfetto SDK: GitHub API unreachable, skipping online download")
+        endif()
+    else()
+        # User pinned a specific tag; verify network with a quick probe.
+        set(_probe_file "${CMAKE_BINARY_DIR}/_perfetto_probe.tmp")
+        file(DOWNLOAD
+            "https://github.com/google/perfetto/tree/${_resolved_tag}"
+            "${_probe_file}"
+            TIMEOUT 10
+            STATUS _probe_status
+        )
+        list(GET _probe_status 0 _probe_rc)
+        if(_probe_rc EQUAL 0)
+            set(_network_ok TRUE)
+        else()
+            message(STATUS "Perfetto SDK: network probe failed for ${_resolved_tag}, skipping online download")
+        endif()
+    endif()
+
+    # ── Online download via CPM ──────────────────────────────────────────
+    if(_network_ok AND _resolved_tag)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CPM.cmake)
+
+        # Set git timeout: abort if < 1 KB/s for 300 seconds.
+        set(ENV{GIT_HTTP_LOW_SPEED_LIMIT} "1000")
+        set(ENV{GIT_HTTP_LOW_SPEED_TIME} "300")
+
+        CPMAddPackage(
+            NAME perfetto
+            GITHUB_REPOSITORY google/perfetto
+            GIT_TAG ${_resolved_tag}
+            GIT_SHALLOW TRUE
+            DOWNLOAD_ONLY TRUE
+        )
+
+        unset(ENV{GIT_HTTP_LOW_SPEED_LIMIT})
+        unset(ENV{GIT_HTTP_LOW_SPEED_TIME})
+
+        if(perfetto_SOURCE_DIR AND EXISTS "${perfetto_SOURCE_DIR}/sdk/perfetto.cc")
+            # ≤v49: amalgamated SDK ships in the repo.
+            set(_perfetto_sdk_dir "${perfetto_SOURCE_DIR}/sdk")
+            set(_perfetto_version "${_resolved_tag}")
+            message(STATUS "Perfetto SDK: online ${_resolved_tag} (amalgamated)")
+        elseif(perfetto_SOURCE_DIR)
+            # v50+: amalgamated SDK not pre-built in the repo.
+            # Try gen_amalgamated on non-MSVC platforms (requires Python + GN).
+            if(NOT MSVC AND EXISTS "${perfetto_SOURCE_DIR}/tools/gen_amalgamated")
+                find_package(Python3 QUIET COMPONENTS Interpreter)
+                if(Python3_FOUND)
+                    message(STATUS "Perfetto SDK: running gen_amalgamated for ${_resolved_tag}...")
+                    execute_process(
+                        COMMAND ${Python3_EXECUTABLE}
+                            "${perfetto_SOURCE_DIR}/tools/gen_amalgamated"
+                            "--output" "${perfetto_SOURCE_DIR}/sdk/perfetto"
+                        WORKING_DIRECTORY "${perfetto_SOURCE_DIR}"
+                        RESULT_VARIABLE _gen_rc
+                        TIMEOUT 120
+                        OUTPUT_QUIET ERROR_QUIET
+                    )
+                    if(_gen_rc EQUAL 0 AND EXISTS "${perfetto_SOURCE_DIR}/sdk/perfetto.cc")
+                        set(_perfetto_sdk_dir "${perfetto_SOURCE_DIR}/sdk")
+                        set(_perfetto_version "${_resolved_tag}")
+                        message(STATUS "Perfetto SDK: online ${_resolved_tag} (generated)")
+                    else()
+                        message(WARNING "Perfetto SDK: gen_amalgamated failed (rc=${_gen_rc})")
+                    endif()
+                else()
+                    message(WARNING "Perfetto SDK: ${_resolved_tag} needs Python3 for gen_amalgamated")
+                endif()
+            endif()
+        endif()
+    endif()
+
+    # ── Fallback: download pre-built SDK zip from GitHub Releases ────────
+    # Works on all platforms including MSVC; no gen_amalgamated needed.
+    if(NOT _perfetto_sdk_dir AND _network_ok AND _resolved_tag)
+        set(_zip_url
+            "https://github.com/google/perfetto/releases/download/${_resolved_tag}/perfetto-cpp-sdk-src.zip")
+        set(_zip_file "${CMAKE_BINARY_DIR}/_perfetto-cpp-sdk-src.zip")
+        set(_zip_extract_dir "${CMAKE_BINARY_DIR}/_perfetto_sdk_zip")
+        message(STATUS "Perfetto SDK: trying release zip for ${_resolved_tag}...")
+        file(DOWNLOAD "${_zip_url}" "${_zip_file}"
+            TIMEOUT 60 STATUS _zip_status)
+        list(GET _zip_status 0 _zip_rc)
+        if(_zip_rc EQUAL 0 AND EXISTS "${_zip_file}")
+            file(MAKE_DIRECTORY "${_zip_extract_dir}")
+            execute_process(
+                COMMAND ${CMAKE_COMMAND} -E tar xf "${_zip_file}"
+                WORKING_DIRECTORY "${_zip_extract_dir}"
+                RESULT_VARIABLE _extract_rc
+            )
+            if(_extract_rc EQUAL 0)
+                # Check common layouts: flat or sdk/ subdirectory.
+                if(EXISTS "${_zip_extract_dir}/perfetto.cc"
+                   AND EXISTS "${_zip_extract_dir}/perfetto.h")
+                    set(_perfetto_sdk_dir "${_zip_extract_dir}")
+                    set(_perfetto_version "${_resolved_tag}")
+                    message(STATUS "Perfetto SDK: online ${_resolved_tag} (release zip)")
+                elseif(EXISTS "${_zip_extract_dir}/sdk/perfetto.cc"
+                       AND EXISTS "${_zip_extract_dir}/sdk/perfetto.h")
+                    set(_perfetto_sdk_dir "${_zip_extract_dir}/sdk")
+                    set(_perfetto_version "${_resolved_tag}")
+                    message(STATUS "Perfetto SDK: online ${_resolved_tag} (release zip)")
+                else()
+                    message(WARNING "Perfetto SDK: release zip extracted but perfetto.cc not found")
+                endif()
+            else()
+                message(WARNING "Perfetto SDK: failed to extract release zip (rc=${_extract_rc})")
+            endif()
+        else()
+            list(GET _zip_status 1 _zip_msg)
+            message(STATUS "Perfetto SDK: release zip not available (${_zip_msg})")
+        endif()
+    endif()
+
+    # ── Automatic offline fallback ───────────────────────────────────────
+    if(NOT _perfetto_sdk_dir)
+        message(STATUS "Perfetto SDK: online methods exhausted, falling back to offline")
+        _use_perfetto_offline()
+    endif()
+
+    if(NOT _perfetto_sdk_dir)
+        message(FATAL_ERROR
+            "TRACY_SAVE_NO_SEND requires Perfetto SDK but all methods failed:\n"
+            "  - Online download: ${_resolved_tag} (network_ok=${_network_ok})\n"
+            "  - Offline SDK not found at: ${_perfetto_offline_dir}\n"
+            "Fix: run  python scripts/download_perfetto_offline.py")
+    endif()
+
+    # ── Build perfetto_sdk static library ─────────────────────────────────
+    # Use protozero-only subset when available (98% smaller than full SDK).
+    # Tracy only needs the protozero serializer; the full Perfetto runtime
+    # (tracing service, IPC, threads) is dead code.
+    # Generate the subset with: python scripts/extract_protozero.py
+    set(_perfetto_protozero "${_perfetto_sdk_dir}/perfetto_protozero.cc")
+    if(NOT EXISTS "${_perfetto_protozero}")
+        # Auto-extract protozero subset if Python is available.
+        find_package(Python3 QUIET COMPONENTS Interpreter)
+        set(_extract_script "${CMAKE_CURRENT_SOURCE_DIR}/scripts/extract_protozero.py")
+        if(Python3_FOUND AND EXISTS "${_extract_script}" AND EXISTS "${_perfetto_sdk_dir}/perfetto.cc")
+            message(STATUS "Perfetto SDK: extracting protozero subset...")
+            execute_process(
+                COMMAND ${Python3_EXECUTABLE} "${_extract_script}"
+                    "--input" "${_perfetto_sdk_dir}/perfetto.cc"
+                    "--output" "${_perfetto_protozero}"
+                RESULT_VARIABLE _extract_rc
+                OUTPUT_QUIET
+            )
+            if(NOT _extract_rc EQUAL 0)
+                message(STATUS "Perfetto SDK: extraction failed (rc=${_extract_rc}), using full source")
+            endif()
+        endif()
+    endif()
+    if(EXISTS "${_perfetto_protozero}")
+        set(_perfetto_src "${_perfetto_protozero}")
+        message(STATUS "Perfetto SDK: using protozero-only subset (fast build)")
+    else()
+        set(_perfetto_src "${_perfetto_sdk_dir}/perfetto.cc")
+        message(STATUS "Perfetto SDK: using full amalgamated source (slow build)")
+    endif()
+    add_library(perfetto_sdk STATIC "${_perfetto_src}")
+    target_include_directories(perfetto_sdk PRIVATE "${_perfetto_sdk_dir}")
+    target_compile_features(perfetto_sdk PRIVATE cxx_std_17)
+    target_compile_definitions(perfetto_sdk PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    if(MSVC)
+        target_compile_definitions(perfetto_sdk PRIVATE _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS)
+        if(_perfetto_src STREQUAL _perfetto_protozero)
+            # ProtoZero subset is small enough that /bigobj is not needed.
+            target_compile_options(perfetto_sdk PRIVATE /WX- /wd4065 /wd4127 /wd4146 /wd4244 /wd4267 /wd4369 /wd4459 /wd4819 /wd4996)
+        else()
+            target_compile_options(perfetto_sdk PRIVATE /WX- /bigobj /wd4065 /wd4127 /wd4146 /wd4244 /wd4267 /wd4369 /wd4459 /wd4819 /wd4996)
+        endif()
+    endif()
+    set_target_properties(perfetto_sdk PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        INTERPROCEDURAL_OPTIMIZATION OFF)
+
+    # ── TracyLitePerfetto.cpp (C++17 TU) ──────────────────────────────────
+    target_sources(TracyClient PRIVATE "${TRACY_PUBLIC_DIR}/client/TracyLitePerfetto.cpp")
+    if(MSVC)
+        set_source_files_properties("${TRACY_PUBLIC_DIR}/client/TracyLitePerfetto.cpp"
+            PROPERTIES COMPILE_FLAGS "/std:c++17 /bigobj")
+    else()
+        set_source_files_properties("${TRACY_PUBLIC_DIR}/client/TracyLitePerfetto.cpp"
+            PROPERTIES COMPILE_FLAGS "-std=c++17")
+    endif()
+
+    target_compile_definitions(TracyClient PUBLIC TRACYLITE_PERFETTO=1)
+    if(TRACYLITE_PERFETTO_COMPACT_EXPORT)
+        target_compile_definitions(TracyClient PRIVATE TRACYLITE_PERFETTO_COMPACT_LEVEL=1)
+    else()
+        target_compile_definitions(TracyClient PRIVATE TRACYLITE_PERFETTO_COMPACT_LEVEL=0)
+    endif()
+    target_compile_definitions(TracyClient PRIVATE "TRACYLITE_PERFETTO_SDK_VERSION=\"${_perfetto_version}\"")
+    target_link_libraries(TracyClient PRIVATE perfetto_sdk)
+    target_include_directories(TracyClient PRIVATE "${_perfetto_sdk_dir}")
+    message(STATUS "TRACY_SAVE_NO_SEND: ON (Perfetto ${_perfetto_version})")
+else ()
+    message(STATUS "TRACY_SAVE_NO_SEND: OFF")
+endif ()
 
 # handle incompatible combinations
 if(TRACY_MANUAL_LIFETIME AND NOT TRACY_DELAYED_INIT)
@@ -181,7 +444,8 @@ set(tracy_includes
     ${TRACY_PUBLIC_DIR}/tracy/TracyMetal.hmm
     ${TRACY_PUBLIC_DIR}/tracy/TracyOpenCL.hpp
     ${TRACY_PUBLIC_DIR}/tracy/TracyOpenGL.hpp
-    ${TRACY_PUBLIC_DIR}/tracy/TracyVulkan.hpp)
+    ${TRACY_PUBLIC_DIR}/tracy/TracyVulkan.hpp
+    ${TRACY_PUBLIC_DIR}/tracy/TracyHcomm.hpp)
 
 set(client_includes
     ${TRACY_PUBLIC_DIR}/client/tracy_concurrentqueue.h
@@ -203,7 +467,8 @@ set(client_includes
     ${TRACY_PUBLIC_DIR}/client/TracySysPower.hpp
     ${TRACY_PUBLIC_DIR}/client/TracySysTime.hpp
     ${TRACY_PUBLIC_DIR}/client/TracySysTrace.hpp
-    ${TRACY_PUBLIC_DIR}/client/TracyThread.hpp)
+    ${TRACY_PUBLIC_DIR}/client/TracyThread.hpp
+    ${TRACY_PUBLIC_DIR}/client/TracyLiteAll.hpp)
 
 set(common_includes
     ${TRACY_PUBLIC_DIR}/common/tracy_lz4.hpp
@@ -228,6 +493,12 @@ install(TARGETS TracyClient
         LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}/$<IF:$<CONFIG:Release>,,$<CONFIG>>
         ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}/$<IF:$<CONFIG:Release>,,$<CONFIG>>
         COMPONENT lib)
+if(TARGET perfetto_sdk)
+    install(TARGETS perfetto_sdk
+            EXPORT TracyConfig
+            ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}/$<IF:$<CONFIG:Release>,,$<CONFIG>>
+            COMPONENT lib)
+endif()
 if(TRACY_Fortran)
     install(TARGETS TracyClientF90
             EXPORT TracyConfig
@@ -237,7 +508,11 @@ if(TRACY_Fortran)
             COMPONENT lib)
 endif()
 # Export targets to build tree root
-export(TARGETS TracyClient
+set(_tracy_export_targets TracyClient)
+if(TARGET perfetto_sdk)
+    list(APPEND _tracy_export_targets perfetto_sdk)
+endif()
+export(TARGETS ${_tracy_export_targets}
        NAMESPACE Tracy::
        FILE ${CMAKE_BINARY_DIR}/TracyTargets.cmake)
 if(TRACY_Fortran)
@@ -281,3 +556,68 @@ if(TRACY_CLIENT_PYTHON)
 
     add_subdirectory(python)
 endif()
+
+# ---------------------------------------------------------------------------
+# Optional sub-projects built from this root.
+# The client library (TracyClient .a/.lib) is ALWAYS built.
+# Enable individual tools with:
+#   -DTRACY_BUILD_CAPTURE=ON   tracy-capture / tracy-capture-daemon
+#   -DTRACY_BUILD_TEST=ON      tracy-test
+#   -DTRACY_BUILD_PROFILER=ON  tracy-profiler  (GUI, requires cmake ≥ 3.25)
+#   -DTRACY_BUILD_EXAMPLES=ON  example programs (ChromeExport, etc.)
+#   -DTRACY_BUILD_IMPORT=ON    tracy-import-chrome / tracy-import-fuchsia
+#   -DTRACY_BUILD_CSVEXPORT=ON tracy-csvexport
+#   -DTRACY_BUILD_MERGE=ON     tracy-merge
+# ---------------------------------------------------------------------------
+option(TRACY_BUILD_CAPTURE  "Build tracy-capture and tracy-capture-daemon"   OFF)
+option(TRACY_BUILD_TEST     "Build tracy-test example"                       OFF)
+option(TRACY_BUILD_PROFILER "Build tracy-profiler GUI"                       OFF)
+option(TRACY_BUILD_EXAMPLES "Build example programs"                         OFF)
+option(TRACY_BUILD_IMPORT   "Build tracy-import-chrome / tracy-import-fuchsia" OFF)
+option(TRACY_BUILD_CSVEXPORT "Build tracy-csvexport"                         OFF)
+option(TRACY_BUILD_MERGE    "Build tracy-merge"                              OFF)
+
+if(TRACY_BUILD_CAPTURE)
+    add_subdirectory(capture)
+endif()
+
+if(TRACY_BUILD_TEST)
+    add_subdirectory(test)
+endif()
+
+if(TRACY_BUILD_PROFILER)
+    if(CMAKE_VERSION VERSION_LESS "3.25")
+        message(FATAL_ERROR "TRACY_BUILD_PROFILER requires CMake 3.25 or newer")
+    endif()
+    add_subdirectory(profiler)
+endif()
+
+if(TRACY_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
+if(TRACY_BUILD_IMPORT)
+    add_subdirectory(import)
+endif()
+
+if(TRACY_BUILD_CSVEXPORT)
+    add_subdirectory(csvexport)
+endif()
+
+if(TRACY_BUILD_MERGE)
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/merge/CMakeLists.txt")
+        add_subdirectory(merge)
+    else()
+        message(WARNING
+            "TRACY_BUILD_MERGE=ON, but ${CMAKE_CURRENT_SOURCE_DIR}/merge does not exist. "
+            "Skipping tracy-merge. Disable TRACY_BUILD_MERGE or add the missing merge subproject.")
+    endif()
+endif()
+
+# Keep CPack at the very end so third-party dependencies can't overwrite
+# top-level package metadata used by CMake package presets.
+set(CPACK_PACKAGE_NAME "Tracy")
+set(CPACK_PACKAGE_VENDOR "Tracy")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+include(CPack)

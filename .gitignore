@@ -1,4 +1,11 @@
-.vs
+.vs/
+!.vs/launch.vs.json
+.vscode/*
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Build directories
 _build
 _compiler
 tools/*
@@ -37,3 +44,7 @@ profiler/build/wasm/embed.tracy
 examples/ToyPathTracer/Windows/TestCpu
 examples/ToyPathTracer/Windows/x64
 *.user
+/out/**
+/.cpm-cache
+*.pdb
+/tracy.slnx
