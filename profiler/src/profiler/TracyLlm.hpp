@@ -109,6 +109,7 @@ private:
     char* m_apiInput;
     std::mutex m_chatLock;
     std::vector<nlohmann::json> m_chat;
+    std::string m_summary;
 
     std::shared_ptr<EmbedData> m_systemPrompt;
     nlohmann::json m_toolsJson;

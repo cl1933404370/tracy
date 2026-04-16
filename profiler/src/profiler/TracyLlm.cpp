@@ -503,6 +503,13 @@ void TracyLlm::Draw()
         ImGui::EndTooltip();
     }
 
+    if( !m_summary.empty() )
+    {
+        TextDisabledUnformatted( ICON_FA_HAND_POINT_RIGHT );
+        ImGui::SameLine();
+        TextDisabledUnformatted( m_summary.c_str() );
+    }
+
     bool inputChanged = false;
     ImGui::Spacing();
     ImGui::BeginChild( "##chat", ImVec2( 0, -( ImGui::GetFrameHeight() + style.ItemSpacing.y * 2 ) ), ImGuiChildFlags_Borders, ImGuiWindowFlags_AlwaysVerticalScrollbar );
@@ -838,6 +845,7 @@ void TracyLlm::ResetChat()
     m_usedCtx = 0;
     m_chatId++;
     m_chat.clear();
+    m_summary.clear();
 
     UpdateSystemPrompt();
 }
@@ -1030,7 +1038,54 @@ void TracyLlm::SendMessage()
     std::unique_lock lock( m_chatLock );
     ManageContext();
     auto chat = m_chat;
+    bool needSummary = m_summary.empty();
     lock.unlock();
+
+    if( needSummary )
+    {
+        auto query = chat;
+        query[0]["content"] = "Provide a one-line topic summary for the user input. Do NOT answer the question. The summary should be slogan-like, 5-8 words max. Reply with ONLY the summary, nothing else. Match the language of the user's query.";
+        QueueFastMessageLocking( query, [this]( const nlohmann::json& res ) {
+            if( res.contains( "choices" ) )
+            {
+                auto& choices = res["choices"];
+                if( choices.is_array() && !choices.empty() )
+                {
+                    auto& c0 = choices[0];
+                    if( c0.contains( "message" ) )
+                    {
+                        auto& msg = c0["message"];
+                        if( msg.contains( "role" ) && msg.contains( "content" ) )
+                        {
+                            auto& role = msg["role"];
+                            auto& content = msg["content"];
+                            if( role.is_string() && content.is_string() && msg["role"].get_ref<const std::string&>() == "assistant" )
+                            {
+                                auto& str = msg["content"].get_ref<const std::string&>();
+                                if( str.size() <= 120 )
+                                {
+                                    if( str.find( '\n' ) != std::string::npos || str.find( '\r' ) != std::string::npos )
+                                    {
+                                        auto tmp = str;
+                                        std::ranges::replace( tmp, '\n', ' ' );
+                                        std::ranges::replace( tmp, '\r', ' ' );
+
+                                        std::lock_guard lock( m_chatLock );
+                                        m_summary = tmp;
+                                    }
+                                    else
+                                    {
+                                        std::lock_guard lock( m_chatLock );
+                                        m_summary = str;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } );
+    }
 
     try
     {
