@@ -34,9 +34,9 @@ static int GetSamplingFrequency()
 #endif
 }
 
-static int GetSamplingPeriod()
+static int SamplingFrequencyToPeriodNs(  int samplingHz )
 {
-    return 1000000000 / GetSamplingFrequency();
+    return 1000000000 / samplingHz;
 }
 
 }
@@ -174,11 +174,6 @@ void WINAPI EventRecordCallback( PEVENT_RECORD record )
     }
 }
 
-static int GetSamplingInterval()
-{
-    return GetSamplingPeriod() / 100;
-}
-
 static etw::Session session_kernel = {};
 static etw::Session session_vsync = {};
 static PROCESSTRACE_HANDLE consumer_kernel = INVALID_PROCESSTRACE_HANDLE;
@@ -207,10 +202,10 @@ bool SysTraceStart( int64_t& samplingPeriod )
 
 
 #ifndef TRACY_NO_SAMPLING
-    int microseconds = GetSamplingInterval() / 10;
+    samplingPeriod = SamplingFrequencyToPeriodNs( GetSamplingFrequency() );
+    const int microseconds = samplingPeriod / 1000;
     if( etw::EnableCPUProfiling( session_kernel, microseconds ) != ERROR_SUCCESS )
         return etw::StopSession( session_kernel ), false;
-    samplingPeriod = GetSamplingPeriod();
 #endif
 
     consumer_kernel = etw::SetupEventConsumer( session_kernel, EventRecordCallback );
@@ -659,7 +654,8 @@ bool SysTraceStart( int64_t& samplingPeriod )
     const bool noVsync = noVsyncEnv && noVsyncEnv[0] == '1';
 #endif
 
-    samplingPeriod = GetSamplingPeriod();
+    const int samplingFrequency = GetSamplingFrequency();
+    samplingPeriod = SamplingFrequencyToPeriodNs( samplingFrequency );
     uint32_t currentPid = ___tracy_magic_pid_override != 0 ? ___tracy_magic_pid_override : (uint32_t)getpid();
 
     s_numCpus = (int)std::thread::hardware_concurrency();
@@ -680,7 +676,7 @@ bool SysTraceStart( int64_t& samplingPeriod )
     pe.type = PERF_TYPE_SOFTWARE;
     pe.size = sizeof( perf_event_attr );
     pe.config = PERF_COUNT_SW_CPU_CLOCK;
-    pe.sample_freq = GetSamplingFrequency();
+    pe.sample_freq = samplingFrequency;
     pe.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_CALLCHAIN;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION( 4, 8, 0 )
     pe.sample_max_stack = 127;
