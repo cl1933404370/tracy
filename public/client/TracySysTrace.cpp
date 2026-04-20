@@ -563,7 +563,7 @@ static char* GetTraceFsPath()
     char* ret = nullptr;
     while( auto ent = getmntent( f ) )
     {
-        if( strcmp( ent->mnt_fsname, "tracefs" ) == 0 )
+        if( strcmp( ent->mnt_type, "tracefs" ) == 0 )
         {
             auto len = strlen( ent->mnt_dir );
             ret = (char*)tracy_malloc( len + 1 );
