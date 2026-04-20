@@ -654,7 +654,21 @@ bool SysTraceStart( int64_t& samplingPeriod )
     const bool noVsync = noVsyncEnv && noVsyncEnv[0] == '1';
 #endif
 
-    const int samplingFrequency = GetSamplingFrequency();
+    int samplingFrequency = GetSamplingFrequency();
+    if( samplingFrequency > 0 )
+    {
+        FILE* f = fopen( "/proc/sys/kernel/perf_event_max_sample_rate", "r" );
+        if( f )
+        {
+            int sysMax;
+            if( fscanf( f, "%d", &sysMax ) == 1 && samplingFrequency > sysMax )
+            {
+                TracyDebug( "Requested sampling frequency %d Hz is higher than system maximum of %d Hz, reducing to system maximum.", samplingFrequency, sysMax );
+                samplingFrequency = sysMax;
+            }
+            fclose( f );
+        }
+    }
     samplingPeriod = SamplingFrequencyToPeriodNs( samplingFrequency );
     uint32_t currentPid = ___tracy_magic_pid_override != 0 ? ___tracy_magic_pid_override : (uint32_t)getpid();
 
