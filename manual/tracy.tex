@@ -570,9 +570,17 @@ noborder=true,
 couleur=black!5,
 logo=\bcbombe
 ]{Keep everything consistent}
-When working with multiple libraries, it is easy to make a mistake and use different sets of feature macros between any two compilation jobs. If you do so, Tracy will not be able to work correctly, and there will be no error or warning messages about the problem. Henceforth, you must make sure each shared object you want to link with, or load uses the same set of macro definitions.
+When working with multiple libraries, it is easy to make a mistake and use different sets of feature macros between any two compilation jobs. If you do so, Tracy will not be able to work correctly. Henceforth, you must make sure each shared object you want to link with, or load uses the same set of macro definitions.
 
-Please note that using a prebuilt shared Tracy library, as provided by some package manager or system distribution, also qualifies as using multiple libraries.
+Tracy will attempt to detect such mismatches at link time. It does so by encoding the relevant build options into an internal function name, so a mismatch will produce a linker error such as (with MSVC):
+
+\begin{lstlisting}
+error LNK2019: unresolved external symbol "int __cdecl GetProfiler_CFG_E1_OD1_DI0_ML0_F0_DHT0_TF0(void) ...
+\end{lstlisting}
+
+The full list of abbreviations is defined in \texttt{public/client/TracyMangle.hpp}. Comparing the suffix against your build settings will tell you which define is wrong.
+
+Note that one case is undetectable: if your code omits \texttt{TRACY\_ENABLE} but the library was built with it, the build will succeed yet Tracy will still start up and attempt to connect to a profiler.
 \end{bclogo}
 
 \subsubsection{Problematic platforms}
