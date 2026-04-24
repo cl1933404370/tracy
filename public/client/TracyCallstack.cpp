@@ -2,6 +2,7 @@
 #include <new>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include "TracyCallstack.hpp"
 #include "TracyDebug.hpp"
 #include "TracyFastVector.hpp"
@@ -351,6 +352,10 @@ struct ExternalImageEntry
 static FastVector<ExternalImageEntry>* s_extImages = nullptr;
 static pid_t s_externalPid = 0;
 static bool s_extImagesSorted = true;
+// Wall-clock second of the last /proc/<pid>/maps re-parse. Used to rate-limit
+// refreshes so addresses that never resolve (JIT, vDSO, stack) do not trigger
+// a full re-parse on every symbolization.
+static int64_t s_lastMapsRefresh = 0;
 
 static uint64_t ReadElfMinLoadVaddr( const char* path )
 {
@@ -481,8 +486,13 @@ static const ExternalImageEntry* FindExternalImageRefresh( uint64_t address )
 
     if( s_externalPid != 0 )
     {
-        ParseExternalProcMaps( s_externalPid );
-        return FindExternalImage( address );
+        const int64_t now = (int64_t)time( nullptr );
+        if( now != s_lastMapsRefresh )
+        {
+            s_lastMapsRefresh = now;
+            ParseExternalProcMaps( s_externalPid );
+            return FindExternalImage( address );
+        }
     }
     return nullptr;
 }
@@ -1424,7 +1434,7 @@ static const char* DecodeCallstackPtrFastExternal( uint64_t ptr )
     auto vptr = (void*)ptr;
     const char* symname = nullptr;
 
-    const auto* extImg = FindExternalImage( ptr );
+    const auto* extImg = FindExternalImageRefresh( ptr );
     if( extImg )
     {
         auto* bts = GetExternalBtState( extImg );
@@ -1512,7 +1522,7 @@ static void SymbolAddressErrorCb( void* data, const char* /*msg*/, int /*errnum*
 static CallstackSymbolData DecodeSymbolAddressExternal( uint64_t ptr )
 {
     CallstackSymbolData sym;
-    const auto* extImg = FindExternalImage( ptr );
+    const auto* extImg = FindExternalImageRefresh( ptr );
     if( extImg )
     {
         auto* bts = GetExternalBtState( extImg );
