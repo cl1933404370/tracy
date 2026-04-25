@@ -365,7 +365,7 @@ void View::DrawMessageLine( const MessageData& msg, bool hasCallstack, int& idx 
     const auto cw = ImGui::GetContentRegionAvail().x;
     const auto tw = ImGui::CalcTextSize( text, tend ).x;
     ImGui::TextUnformatted( text, tend );
-    if( tw > cw && ImGui::IsItemHovered() )
+    if( (tw > cw || *tend != '\0') && ImGui::IsItemHovered() )
     {
         ImGui::SetNextWindowSize( ImVec2( 1000 * GetScale(), 0 ) );
         ImGui::BeginTooltip();
