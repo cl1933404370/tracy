@@ -745,6 +745,11 @@ void View::CallstackTooltipContents( uint32_t idx )
                     while( *++test );
                     if( match ) continue;
                 }
+
+                auto filename = m_worker.GetString( frame.file );
+                auto image = frameData->imageName.Active() ? m_worker.GetString( frameData->imageName ) : nullptr;
+                const auto external = IsFrameExternal( filename, image );
+
                 if( f == fsz-1 )
                 {
                     ImGui::TextDisabled( "%i.", fidx++ );
@@ -761,6 +766,10 @@ void View::CallstackTooltipContents( uint32_t idx )
                 else if( m_worker.GetCanonicalPointer( entry ) >> 63 != 0 )
                 {
                     TextColoredUnformatted( 0xFF8888FF, txt );
+                }
+                else if( external )
+                {
+                    TextDisabledUnformatted( txt );
                 }
                 else if( m_vd.shortenName == ShortenName::Never )
                 {
