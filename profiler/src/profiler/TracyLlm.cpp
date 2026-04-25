@@ -571,18 +571,21 @@ void TracyLlm::Draw()
             {
                 if( line.contains( "content" ) && line["content"].get_ref<const std::string&>().starts_with( "<attachment>\n" ) ) role = TracyLlmChat::TurnRole::Attachment;
             }
-            else if( role == TracyLlmChat::TurnRole::Assistant && timeStart == 0 && line.contains( "model" ) && line.contains( "time_start" ) )
+            else if( role == TracyLlmChat::TurnRole::Assistant )
             {
-                model = line["model"].get_ref<const std::string&>();
-                timeStart = line["time_start"].get<uint64_t>();
-            }
-            if( line.contains( "time_end" ) )
-            {
-                timeEnd = line["time_end"].get<uint64_t>();
-                if( timeStart != 0 )
+                if( timeStart == 0 && line.contains( "model" ) && line.contains( "time_start" ) )
                 {
-                    m_chatUi->SetModelTimeLabel( model.c_str(), timeEnd - timeStart );
-                    timeStart = 0;
+                    model = line["model"].get_ref<const std::string&>();
+                    timeStart = line["time_start"].get<uint64_t>();
+                }
+                if( line.contains( "time_end" ) )
+                {
+                    timeEnd = line["time_end"].get<uint64_t>();
+                    if( timeStart != 0 )
+                    {
+                        m_chatUi->SetModelTimeLabel( model.c_str(), timeEnd - timeStart );
+                        timeStart = 0;
+                    }
                 }
             }
 
