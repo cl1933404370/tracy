@@ -18,6 +18,7 @@
 #include "TracyBuzzAnim.hpp"
 #include "TracyConfig.hpp"
 #include "TracyDecayValue.hpp"
+#include "TracyManualData.hpp"
 #include "TracyMarkdown.hpp"
 #include "TracySourceContents.hpp"
 #include "TracyTimelineController.hpp"
@@ -137,6 +138,8 @@ public:
     void ViewSourceCheckKeyMod( const char* fileName, int line, const char* functionName );
     void ViewSymbol( const char* fileName, int line, uint64_t baseAddr, uint64_t symAddr );
     bool ViewDispatch( const char* fileName, int line, uint64_t symAddr );
+
+    const TracyManualData::ManualChunk* GetManualChunk( const char* anchor ) const;
 
     bool ReconnectRequested() const { return m_reconnectRequested; }
     std::string GetAddress() const { return m_worker.GetAddr(); }

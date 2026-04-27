@@ -87,4 +87,15 @@ void View::DrawManual()
     ImGui::End();
 }
 
+const TracyManualData::ManualChunk* View::GetManualChunk( const char* anchor ) const
+{
+    assert( anchor && *anchor );
+    assert( m_manualData );
+
+    auto& chunks = m_manualData->GetChunks();
+    auto it = std::ranges::find_if( chunks, [anchor]( const auto& chunk ) { return chunk.link == anchor; } );
+    if( it != chunks.end() ) return &*it;
+    return nullptr;
+}
+
 }
