@@ -59,7 +59,7 @@ View::View( void(*cbMainThread)(const std::function<void()>&, bool), const char*
     , m_horizontalScrollMultiplier( s_config.horizontalScrollMultiplier )
     , m_verticalScrollMultiplier( s_config.verticalScrollMultiplier )
     , m_manualData( std::make_shared<TracyManualData>() )
-    , m_markdown( nullptr, nullptr )
+    , m_markdown( this, &m_worker )
 #ifdef __EMSCRIPTEN__
     , m_td( 2, "ViewMt" )
 #else
@@ -90,7 +90,7 @@ View::View( void(*cbMainThread)(const std::function<void()>&, bool), FileRead& f
     , m_horizontalScrollMultiplier( s_config.horizontalScrollMultiplier )
     , m_verticalScrollMultiplier( s_config.verticalScrollMultiplier )
     , m_manualData( std::make_shared<TracyManualData>() )
-    , m_markdown( nullptr, nullptr )
+    , m_markdown( this, &m_worker )
 #ifdef __EMSCRIPTEN__
     , m_td( 2, "ViewMt" )
 #else
