@@ -367,6 +367,7 @@ private:
     void LinkHover()
     {
         const auto isSource = link.starts_with( "source:" ) && m_view && m_worker;
+        const auto isAnchor = link.starts_with( "#" ) && m_view;
         StringIdx idx;
         uint32_t line = 0;
 
@@ -402,6 +403,26 @@ private:
             else
             {
                 TextColoredUnformatted( ImVec4( 1.f, 0.f, 0.f, 1.f ), "Invalid source file reference" );
+            }
+        }
+        else if( isAnchor )
+        {
+            auto chunk = m_view->GetManualChunk( link.c_str() );
+            if( chunk )
+            {
+                if( chunk->section.empty() )
+                {
+                    ImGui::TextUnformatted( chunk->title.c_str() );
+                }
+                else
+                {
+                    ImGui::Text( "%s. %s", chunk->section.c_str(), chunk->title.c_str() );
+                }
+            }
+            else
+            {
+                TextColoredUnformatted( ImVec4( 1.f, 0.f, 0.f, 1.f ), "Invalid manual chunk reference" );
+                ImGui::TextUnformatted( link.c_str() );
             }
         }
         else
