@@ -65,7 +65,6 @@ struct CpuCtxDraw;
 struct LockDraw;
 struct PlotDraw;
 struct FlameGraphContext;
-class TracyManualData;
 
 
 class View
