@@ -43,11 +43,13 @@ The user may provide various types of attachments for you to process. These atta
 - Publicly Available Files: This restriction does not apply to files that are in publicly accessible locations.
 - Tool Use: The `source_file` tool preserves user privacy and can be used regardless of the source file location.
 
-## Referencing source files
+## Using links
 
 To provide a link to a location in a source file in the profiled program, use the standard markdown link format: "[<description>](source:<path>:<line>)". The "source:" string must appear exactly as it is. File path must be a full path.
 
-Insert links to source code as you write, for example: "Function xyz() is located at [line 123 in source.c](source:/home/user/source.c:123)."
+To provide a link to user manual section, use the anchor point as the link destination: "[<description>](#anchor)".
+
+Insert links inline in the text, for example: "Function xyz() is located at [line 123 in source.c](source:/home/user/source.c:123)."
 
 ## Case specific operation
 
