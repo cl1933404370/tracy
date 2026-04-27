@@ -5,6 +5,7 @@
 #include "TracyManualData.hpp"
 #include "TracyMarkdown.hpp"
 #include "TracyView.hpp"
+#include "../Fonts.hpp"
 
 namespace tracy
 {
@@ -85,6 +86,19 @@ void View::DrawManual()
     }
 
     auto& chunk = chunks[m_activeManualChunk];
+
+    ImGui::PushFont( g_fonts.normal, FontBig );
+    if( chunk.section.empty() )
+    {
+        ImGui::TextUnformatted( chunk.title.c_str() );
+    }
+    else
+    {
+        ImGui::Text( "%s. %s", chunk.section.c_str(), chunk.title.c_str() );
+    }
+    ImGui::Dummy( ImVec2( 0, ImGui::GetTextLineHeight() * 0.25f ) );
+    ImGui::PopFont();
+
     m_markdown.Print( chunk.text.c_str(), chunk.text.size() );
 
     ImGui::EndChild();
