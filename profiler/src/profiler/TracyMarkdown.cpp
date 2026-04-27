@@ -366,14 +366,14 @@ private:
 
     void LinkHover()
     {
-        const auto isSource = link.starts_with( "source:" );
+        const auto isSource = link.starts_with( "source:" ) && m_view && m_worker;
         StringIdx idx;
         uint32_t line = 0;
 
         ImGui::SetMouseCursor( ImGuiMouseCursor_Hand );
         ImGui::BeginTooltip();
         ImGui::PushStyleColor( ImGuiCol_Text, ImVec4( 1.f, 1.f, 1.f, 1.f ) );
-        if( isSource && m_view && m_worker )
+        if( isSource )
         {
             std::string source = link.substr( 7 );
             auto separator = source.find_last_of( ':' );
@@ -412,7 +412,7 @@ private:
         ImGui::EndTooltip();
         if( IsMouseClicked( ImGuiMouseButton_Left ) )
         {
-            if( isSource && m_view && m_worker )
+            if( isSource )
             {
                 if( idx.Active() )
                 {
