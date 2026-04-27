@@ -140,6 +140,7 @@ public:
     bool ViewDispatch( const char* fileName, int line, uint64_t symAddr );
 
     const TracyManualData::ManualChunk* GetManualChunk( const char* anchor ) const;
+    bool ViewManualChunk( const char* anchor );
 
     bool ReconnectRequested() const { return m_reconnectRequested; }
     std::string GetAddress() const { return m_worker.GetAddr(); }
@@ -573,6 +574,7 @@ private:
     bool m_showWaitStacks = false;
     bool m_showFlameGraph = false;
     bool m_showManual = false;
+    bool m_manualPositionReset = false;
 
     AccumulationMode m_statAccumulationMode = AccumulationMode::SelfOnly;
     bool m_statSampleTime = true;

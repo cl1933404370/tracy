@@ -441,6 +441,10 @@ private:
                     m_view->ViewSource( str, line );
                 }
             }
+            else if( isAnchor )
+            {
+                m_view->ViewManualChunk( link.c_str() );
+            }
             else
             {
                 OpenWebpage( link.c_str() );

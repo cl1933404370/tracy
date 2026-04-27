@@ -78,6 +78,12 @@ void View::DrawManual()
     ImGui::NextColumn();
     ImGui::BeginChild( "##content", ImVec2( 0, 0 ), ImGuiChildFlags_AlwaysUseWindowPadding );
 
+    if( m_manualPositionReset )
+    {
+        ImGui::SetScrollY( 0 );
+        m_manualPositionReset = false;
+    }
+
     auto& chunk = chunks[m_activeManualChunk];
     m_markdown.Print( chunk.text.c_str(), chunk.text.size() );
 
@@ -96,6 +102,17 @@ const TracyManualData::ManualChunk* View::GetManualChunk( const char* anchor ) c
     auto it = std::ranges::find_if( chunks, [anchor]( const auto& chunk ) { return chunk.link == anchor; } );
     if( it != chunks.end() ) return &*it;
     return nullptr;
+}
+
+bool View::ViewManualChunk( const char* anchor )
+{
+    assert( anchor && *anchor );
+    const auto chunk = GetManualChunk( anchor );
+    if( !chunk ) return false;
+    m_activeManualChunk = std::distance( m_manualData->GetChunks().data(), chunk );
+    m_showManual = true;
+    m_manualPositionReset = true;
+    return true;
 }
 
 }
