@@ -208,7 +208,7 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, bool g
             if( it == m_callstackDesc.end() ) force = true;
         }
         ImGui::SameLine();
-        ImGui::SeparatorEx( ImGuiSeparatorFlags_Vertical );
+        ImGui::Spacing();
         ImGui::SameLine();
         bool clicked = false;
         if( ImGui::SmallButton( ICON_FA_TAG ) || force )
@@ -290,6 +290,7 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, bool g
         auto it = m_callstackDesc.find( callstack );
         if( it != m_callstackDesc.end() )
         {
+            TextDisabledUnformatted( ICON_FA_HAND_POINT_RIGHT );
             ImGui::SameLine();
             if( strcmp( it->second.c_str(), "…" ) == 0 )
             {
@@ -297,11 +298,11 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, bool g
             }
             else if( strncmp( it->second.c_str(), "<error>", 7 ) == 0 )
             {
-                TextColoredUnformatted( ImVec4( 1.0f, 0.3f, 0.3f, 1.0f ), it->second.c_str() );
+                TextColoredUnformatted( ImVec4( 1.0f, 0.3f, 0.3f, 0.5f ), it->second.c_str() );
             }
             else
             {
-                ImGui::TextUnformatted( it->second.c_str() );
+                TextDisabledUnformatted( it->second.c_str() );
             }
             if( clicked ) it->second = "…";
         }
