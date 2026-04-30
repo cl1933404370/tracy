@@ -206,6 +206,7 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, uint64
     ImGui::PopStyleVar();
 
 #ifndef __EMSCRIPTEN__
+    bool clicked = false;
     if( s_config.llm && callstack >= 0 )
     {
         bool force = false;
@@ -221,7 +222,6 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, uint64
         bool clicked = false;
         if( ImGui::SmallButton( ICON_FA_TAG ) || force )
         {
-            clicked = true;
             nlohmann::json req = {
                 {
                     { "role", "system" },
@@ -293,31 +293,36 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, uint64
                 m_callstackDesc[callstack] = "<error>";
             } );
         }
+    }
+#endif
 
-        if( showThread && thread != 0 )
+    if( showThread && thread != 0 )
+    {
+        ImGui::SameLine();
+        ImGui::Spacing();
+        ImGui::SameLine();
+
+        ImGui::SeparatorEx( ImGuiSeparatorFlags_Vertical );
+
+        ImGui::SameLine();
+        ImGui::Spacing();
+        ImGui::SameLine();
+
+        SmallColorBox( GetThreadColor( thread, 0 ) );
+        ImGui::SameLine();
+        TextFocused( "Thread:", m_worker.GetThreadName( thread ) );
+        ImGui::SameLine();
+        ImGui::TextDisabled( "(%s)", RealToString( thread ) );
+        if( m_worker.IsThreadFiber( thread ) )
         {
             ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-
-            ImGui::SeparatorEx( ImGuiSeparatorFlags_Vertical );
-
-            ImGui::SameLine();
-            ImGui::Spacing();
-            ImGui::SameLine();
-
-            SmallColorBox( GetThreadColor( thread, 0 ) );
-            ImGui::SameLine();
-            TextFocused( "Thread:", m_worker.GetThreadName( thread ) );
-            ImGui::SameLine();
-            ImGui::TextDisabled( "(%s)", RealToString( thread ) );
-            if( m_worker.IsThreadFiber( thread ) )
-            {
-                ImGui::SameLine();
-                TextColoredUnformatted( ImVec4( 0.2f, 0.6f, 0.2f, 1.f ), "Fiber" );
-            }
+            TextColoredUnformatted( ImVec4( 0.2f, 0.6f, 0.2f, 1.f ), "Fiber" );
         }
+    }
 
+#ifndef __EMSCRIPTEN__
+    if( s_config.llm && callstack >= 0 )
+    {
         std::lock_guard lock( m_callstackDescLock );
         auto it = m_callstackDesc.find( callstack );
         if( it != m_callstackDesc.end() )
