@@ -9,6 +9,7 @@
 #include "TracyLlmChat.hpp"
 #include "TracyMouse.hpp"
 #include "TracyPrint.hpp"
+#include "TracyView.hpp"
 #include "../Fonts.hpp"
 #include "../../public/common/TracyForceInline.hpp"
 
@@ -144,6 +145,7 @@ TracyLlmChat::TracyLlmChat( View& view, Worker& worker, const std::vector<LlmSki
     : m_width( new float[NumRoles] )
     , m_markdown( &view, &worker )
     , m_skills( skills )
+    , m_view( view )
 {
 }
 
@@ -285,6 +287,20 @@ bool TracyLlmChat::Turn( TurnRole role, std::vector<nlohmann::json>::iterator it
             const bool expand = ImGui::TreeNode( "Attachment" );
             ImGui::SameLine();
             ImGui::TextDisabled( "(%s)", type.c_str() );
+            if( type == "callstack" )
+            {
+                if( j.contains( "id" ) )
+                {
+                    const auto id = j["id"].get<int64_t>();
+                    assert( id >= 0 );
+                    const auto thread = j.contains( "thread" ) ? j["thread"].get<uint32_t>() : 0;
+                    ImGui::SameLine();
+                    if( ImGui::SmallButton( ICON_FA_EYE ) )
+                    {
+                        m_view.ViewCallstack( id, thread );
+                    }
+                }
+            }
             if( expand )
             {
                 ImGui::PushFont( g_fonts.mono, FontNormal );
