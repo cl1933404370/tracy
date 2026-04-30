@@ -1089,7 +1089,7 @@ void View::DrawZoneInfoWindow()
         {
             if( ImGui::TreeNode( "Call stack" ) )
             {
-                DrawCallstackTable( m_worker.GetZoneExtra( ev ).callstack.Val(), false );
+                DrawCallstackTable( m_worker.GetZoneExtra( ev ).callstack.Val(), tid, false, false );
                 ImGui::TreePop();
             }
         }
@@ -1103,7 +1103,7 @@ void View::DrawZoneInfoWindow()
                 TextDisabledUnformatted( ICON_FA_WAND_SPARKLES );
                 if( expand )
                 {
-                    DrawCallstackTable( cs.data(), cs.size(), false );
+                    DrawCallstackTable( cs.data(), cs.size(), tid, false, false );
                     ImGui::TreePop();
                 }
             }
@@ -1580,7 +1580,7 @@ void View::DrawGpuInfoWindow()
         {
             if( ImGui::TreeNode( "Call stack" ) )
             {
-                DrawCallstackTable( ev.callstack.Val(), false );
+                DrawCallstackTable( ev.callstack.Val(), tid, false, false );
                 ImGui::TreePop();
             }
         }

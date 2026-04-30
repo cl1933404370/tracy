@@ -590,7 +590,7 @@ void View::DrawWaitStacks()
             PrintStringPercent( buf, 100. * data[m_waitStack]->second / totalCount );
             TextDisabledUnformatted( buf );
             ImGui::Separator();
-            DrawCallstackTable( data[m_waitStack]->first, false );
+            DrawCallstackTable( data[m_waitStack]->first, 0, false, false );
             break;
         }
         case 1:

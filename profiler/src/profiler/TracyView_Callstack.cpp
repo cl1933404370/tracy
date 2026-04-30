@@ -24,22 +24,22 @@ void View::DrawCallstackWindow()
     ImGui::Begin( "Call stack", &show, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
     if( !ImGui::GetCurrentWindowRead()->SkipItems )
     {
-        DrawCallstackTable( m_callstackView.id, true );
+        DrawCallstackTable( m_callstackView.id, m_callstackView.thread, true, true );
     }
     ImGui::End();
     if( !show ) m_callstackView = {};
 }
 
-void View::DrawCallstackTable( uint32_t callstack, bool globalEntriesButton )
+void View::DrawCallstackTable( uint32_t callstack, uint64_t thread, bool globalEntriesButton, bool showThread )
 {
     auto& crash = m_worker.GetCrashEvent();
     const bool hasCrashed = crash.thread != 0 && crash.callstack == callstack;
 
     auto& cs = m_worker.GetCallstack( callstack );
-    DrawCallstackTable( cs.data(), cs.size(), globalEntriesButton, hasCrashed, callstack );
+    DrawCallstackTable( cs.data(), cs.size(), thread, globalEntriesButton, showThread, hasCrashed, callstack );
 }
 
-void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, bool globalEntriesButton, bool hasCrashed, int64_t callstack )
+void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, uint64_t thread, bool globalEntriesButton, bool showThread, bool hasCrashed, int64_t callstack )
 {
     if( ClipboardButton() )
     {
@@ -113,7 +113,7 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, bool g
     }
     if( s_config.llm )
     {
-        auto Attach = [this, data, size, hasCrashed]() {
+        auto Attach = [this, data, size, hasCrashed, thread]() {
             auto json = GetCallstackJson( data, size );
             if( hasCrashed )
             {
@@ -124,6 +124,13 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, bool g
                 if( strcmp( threadName, "???" ) != 0 ) json["thread_name"] = threadName;
                 json["thread_id"] = crash.thread;
             }
+            else
+            {
+                auto threadName = m_worker.GetThreadName( thread );
+                if( strcmp( threadName, "???" ) != 0 ) json["thread_name"] = threadName;
+                json["thread_id"] = thread;
+            }
+
             AddLlmAttachment( json );
         };
 
@@ -285,6 +292,30 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, bool g
                 std::lock_guard lock( m_callstackDescLock );
                 m_callstackDesc[callstack] = "<error>";
             } );
+        }
+
+        if( showThread && thread != 0 )
+        {
+            ImGui::SameLine();
+            ImGui::Spacing();
+            ImGui::SameLine();
+
+            ImGui::SeparatorEx( ImGuiSeparatorFlags_Vertical );
+
+            ImGui::SameLine();
+            ImGui::Spacing();
+            ImGui::SameLine();
+
+            SmallColorBox( GetThreadColor( thread, 0 ) );
+            ImGui::SameLine();
+            TextFocused( "Thread:", m_worker.GetThreadName( thread ) );
+            ImGui::SameLine();
+            ImGui::TextDisabled( "(%s)", RealToString( thread ) );
+            if( m_worker.IsThreadFiber( thread ) )
+            {
+                ImGui::SameLine();
+                TextColoredUnformatted( ImVec4( 0.2f, 0.6f, 0.2f, 1.f ), "Fiber" );
+            }
         }
 
         std::lock_guard lock( m_callstackDescLock );

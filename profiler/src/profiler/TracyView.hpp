@@ -294,8 +294,8 @@ private:
     void DrawAllocList();
     void DrawCompare();
     void DrawCallstackWindow();
-    void DrawCallstackTable( uint32_t callstack, bool globalEntriesButton );
-    void DrawCallstackTable( const CallstackFrameId* data, size_t size, bool globalEntriesButton, bool hasCrashed = false, int64_t callstack = -1 );
+    void DrawCallstackTable( uint32_t callstack, uint64_t thread, bool globalEntriesButton, bool showThread );
+    void DrawCallstackTable( const CallstackFrameId* data, size_t size, uint64_t thread, bool globalEntriesButton, bool showThread, bool hasCrashed = false, int64_t callstack = -1 );
     void DrawMemoryAllocWindow();
     void DrawInfo();
     void DrawTextEditor();
