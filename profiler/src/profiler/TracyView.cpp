@@ -1526,4 +1526,12 @@ void View::AddLlmQuery( const char* query )
 #endif
 }
 
+void View::ViewCallstack( uint32_t callstack, uint32_t thread )
+{
+    m_callstackView = {
+        .id = callstack,
+        .thread = thread
+    };
+}
+
 }

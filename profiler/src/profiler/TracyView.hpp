@@ -184,6 +184,8 @@ public:
     void AddLlmAttachment( const nlohmann::json& json );
     void AddLlmQuery( const char* query );
 
+    void ViewCallstack( uint32_t callstack, uint32_t thread );
+
     bool m_showRanges = false;
     Range m_statRange;
     Range m_flameRange;
