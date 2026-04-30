@@ -17,6 +17,8 @@
 #include "../public/common/TracySystem.hpp"
 
 #include "data/SystemPrompt.hpp"
+#include "data/SkillCallstack.hpp"
+#include "data/SkillOptimization.hpp"
 #include "data/ToolsJson.hpp"
 
 namespace tracy
@@ -42,6 +44,9 @@ TracyLlm::TracyLlm( Worker& worker, View& view, const TracyManualData& manual )
         atexit( curl_global_cleanup );
     }
 
+    AddSkill( "callstack", "Analyze content of a call stack or crash trace", Unembed( SkillCallstack ) );
+    AddSkill( "optimization", "General code optimization workflow", Unembed( SkillOptimization ) );
+
     m_systemPrompt = Unembed( SystemPrompt );
     auto toolsJson = Unembed( ToolsJson );
     m_toolsJson = nlohmann::json::parse( toolsJson->data(), toolsJson->data() + toolsJson->size() );
@@ -51,8 +56,8 @@ TracyLlm::TracyLlm( Worker& worker, View& view, const TracyManualData& manual )
     ResetChat();
 
     m_api = std::make_unique<TracyLlmApi>();
-    m_chatUi = std::make_unique<TracyLlmChat>( view, worker );
-    m_tools = std::make_unique<TracyLlmTools>( worker, manual );
+    m_chatUi = std::make_unique<TracyLlmChat>( view, worker, m_skills );
+    m_tools = std::make_unique<TracyLlmTools>( worker, manual, m_skills );
 
     m_busy = true;
     QueueConnect();
@@ -872,15 +877,20 @@ void TracyLlm::UpdateSystemPrompt()
     static constexpr std::string_view UserToken = "%USER%";
     static constexpr std::string_view TimeToken = "%TIME%";
     static constexpr std::string_view ProgramNameToken = "%PROGRAMNAME%";
+    static constexpr std::string_view SkillsToken = "%SKILLS%";
 
     auto userName = GetUserFullName();
     if( !userName ) userName = GetUserLogin();
+
+    std::string skills;
+    for( auto& skill : m_skills ) skills += skill.name + ": " + skill.description + "\n";
 
     auto systemPrompt = std::string( m_systemPrompt->data(), m_systemPrompt->size() );
 
     Replace( systemPrompt, UserToken, userName );
     Replace( systemPrompt, TimeToken, m_tools->GetCurrentTime() );
     Replace( systemPrompt, ProgramNameToken, m_worker.GetCaptureProgram() );
+    Replace( systemPrompt, SkillsToken, skills );
 
     if( !m_api )
     {
@@ -1302,6 +1312,11 @@ bool TracyLlm::OnResponse( const nlohmann::json& json )
     }
 
     return true;
+}
+
+void TracyLlm::AddSkill( std::string&& name, std::string&& description, const std::shared_ptr<EmbedData>& content )
+{
+    m_skills.emplace_back( std::move( name ), std::move( description ), std::string( content->data(), content->size() ) );
 }
 
 }

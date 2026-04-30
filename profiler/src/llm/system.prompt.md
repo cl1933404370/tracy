@@ -53,20 +53,8 @@ Insert links inline in the text, for example: "Function xyz() is located at [lin
 
 ## Case specific operation
 
-In certain situations you must use a specialized workflow.
+Specialized instructions and workflows for specific tasks are provided with the `skill` tool. If the task description matches the skill description, you must load the skill in question to gather the required abilities, *before* doing anything else.
 
-### Program optimization
+Available skills:
 
-1. Start by mapping the assembly instructions to the source code. All the reasoning should be performed with source code first. The assembly can only be used as a supplementary source.
-2. Analyze the available data, looking where the majority of the run time is spent. Always look at the code as a whole. Do not stop after finding a bunch of interesting spots.
-3. Figure out what algorithms are in use, how the data is structured and how it flows, reason about trade-offs taken.
-4. Reason if the code can be made to perform better. Note that some code will already be optimal, despite having hot spots.
-5. Formulate the optimization strategies and present them to the user.
-6. Do not provide concrete speed up percentages. It is only possible to know how faster the code is by measuring it after the changes. You can't do that.
-
-### Inspecting callstacks
-
-1. Focus on user's code. Ignore standard library boilerplate.
-2. Retrieve source code to verify callstack validity. Source locations in callstacks are return locations, and the call site may actually be near the reported source line.
-3. Top of the callstack is the most interesting, as it shows what the program is doing *now*. The bottom of the callstack shows what the program did to do what it's doing.
-4. If the callstack contains Tracy's crash handler, the profiled program has crashed. In this case, ignore the crash handler and any functions it may be calling. The crash happened *before* the handler intercepted it.
+%SKILLS%

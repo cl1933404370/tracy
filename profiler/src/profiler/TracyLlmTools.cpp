@@ -10,6 +10,7 @@
 #include <regex>
 
 #include "TracyConfig.hpp"
+#include "TracyLlm.hpp"
 #include "TracyLlmApi.hpp"
 #include "TracyLlmTools.hpp"
 #include "TracyManualData.hpp"
@@ -78,9 +79,10 @@ static std::unique_ptr<pugi::xml_document> ParseHtml( const std::string& html )
     return doc;
 }
 
-TracyLlmTools::TracyLlmTools( Worker& worker, const TracyManualData& manual )
+TracyLlmTools::TracyLlmTools( Worker& worker, const TracyManualData& manual, const std::vector<LlmSkill>& skills )
     : m_worker( worker )
     , m_manual( manual )
+    , m_skills( skills )
 {
     int idx = 0;
     for( auto& chunk : m_manual.GetChunks() )
@@ -181,6 +183,10 @@ std::string TracyLlmTools::HandleToolCalls( const std::string& tool, const nlohm
         {
             std::string empty;
             return SourceSearch( Param( "query" ), ParamOptBool( "case_insensitive", false ), ParamOptString( "path", empty ) );
+        }
+        else if( tool == "skill" )
+        {
+            return GetSkill( Param( "name" ) );
         }
         return "Unknown tool call: " + tool;
     }
@@ -1006,6 +1012,13 @@ std::string TracyLlmTools::SourceSearch( std::string query, bool caseInsensitive
         if( ret.size() > CalcMaxSize() ) return "Too many matches found.";
     }
     return ret;
+}
+
+std::string TracyLlmTools::GetSkill( const std::string& name ) const
+{
+    auto it = std::ranges::find_if( m_skills, [&name]( const auto& skill ) { return skill.name == name; } );
+    if( it == m_skills.end() ) return "No such skill.";
+    return it->content;
 }
 
 }

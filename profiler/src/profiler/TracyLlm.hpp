@@ -23,6 +23,13 @@ class TracyManualData;
 class View;
 class Worker;
 
+struct LlmSkill
+{
+    std::string name;
+    std::string description;
+    std::string content;
+};
+
 class TracyLlm
 {
     enum class Task
@@ -81,6 +88,8 @@ private:
     void AppendResponse( const char* name, const nlohmann::json& delta );
     bool OnResponse( const nlohmann::json& json );
 
+    void AddSkill( std::string&& name, std::string&& description, const std::shared_ptr<EmbedData>& content );
+
     std::unique_ptr<TracyLlmApi> m_api;
     std::unique_ptr<TracyLlmChat> m_chatUi;
     std::unique_ptr<TracyLlmTools> m_tools;
@@ -111,6 +120,7 @@ private:
     std::vector<nlohmann::json> m_chat;
     std::string m_summary;
 
+    std::vector<LlmSkill> m_skills;
     std::shared_ptr<EmbedData> m_systemPrompt;
     nlohmann::json m_toolsJson;
 

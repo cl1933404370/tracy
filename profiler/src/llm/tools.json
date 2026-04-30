@@ -2,6 +2,23 @@
 {
   "type": "function",
   "function": {
+    "name": "skill",
+    "description": "Learn a specialized skill for the task needing specific knowledge.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the skill, chosen from the list of available skills."
+        }
+      },
+      "required": ["name"]
+    }
+  }
+},
+{
+  "type": "function",
+  "function": {
     "name": "search_wikipedia",
     "description": "Search the Wikipedia with given query. The `key` field in the response is the Wikipedia page name. Uses network.",
     "parameters": {

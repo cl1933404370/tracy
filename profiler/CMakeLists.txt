@@ -144,6 +144,8 @@ set(PROFILER_FILES
 )
 
 Embed(PROFILER_FILES SystemPrompt src/llm/system.prompt.md)
+Embed(PROFILER_FILES SkillCallstack src/llm/skill.callstack.md)
+Embed(PROFILER_FILES SkillOptimization src/llm/skill.optimization.md)
 Embed(PROFILER_FILES ToolsJson src/llm/tools.json)
 Embed(PROFILER_FILES FontFixed src/font/FiraCode-Retina.ttf)
 Embed(PROFILER_FILES FontIcons src/font/Font\ Awesome\ 6\ Free-Solid-900.otf)

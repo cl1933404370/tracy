@@ -2,12 +2,14 @@
 #define __TRACYLLMCHAT_HPP__
 
 #include <nlohmann/json.hpp>
+#include <vector>
 
 #include "TracyMarkdown.hpp"
 
 namespace tracy
 {
 
+struct LlmSkill;
 class View;
 class Worker;
 
@@ -35,7 +37,7 @@ public:
         ToolCall
     };
 
-    TracyLlmChat( View& view, Worker& worker );
+    TracyLlmChat( View& view, Worker& worker, const std::vector<LlmSkill>& skills );
     ~TracyLlmChat();
 
     void Begin();
@@ -50,6 +52,8 @@ private:
 
     void PrintThink( const char* str, size_t size );
 
+    [[nodiscard]] std::string ToolCallDescription( const nlohmann::json& json ) const;
+
     float* m_width;
     float m_maxWidth;
 
@@ -61,6 +65,8 @@ private:
 
     Markdown m_markdown;
     std::string m_label;
+
+    const std::vector<LlmSkill>& m_skills;
 };
 
 }

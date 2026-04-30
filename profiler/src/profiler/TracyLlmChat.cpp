@@ -5,6 +5,7 @@
 #include <string>
 
 #include "TracyImGui.hpp"
+#include "TracyLlm.hpp"
 #include "TracyLlmChat.hpp"
 #include "TracyMouse.hpp"
 #include "TracyPrint.hpp"
@@ -68,7 +69,7 @@ static const char* utfendl( const char* str, int len )
 }
 
 
-static std::string ToolCallDescription( const nlohmann::json& json )
+std::string TracyLlmChat::ToolCallDescription( const nlohmann::json& json ) const
 {
     if( !json.contains( "arguments" ) ) return "";
     nlohmann::json args;
@@ -127,13 +128,22 @@ static std::string ToolCallDescription( const nlohmann::json& json )
         if( args.contains( "path" ) ) path = ", path: " + args["path"].get_ref<const std::string&>();
         return "Source search: " + args["query"].get_ref<const std::string&>() + caseInsensitive + path;
     }
+    else if( name == "skill" )
+    {
+        if( !args.contains( "name" ) ) return "";
+        auto skill = args["name"].get_ref<const std::string&>();
+        auto it = std::ranges::find_if( m_skills, [&skill]( const auto& s ) { return s.name == skill; } );
+        if( it == m_skills.end() ) return "";
+        return "Learn skill: " + it->description;
+    }
     return "";
 }
 
 
-TracyLlmChat::TracyLlmChat( View& view, Worker& worker )
+TracyLlmChat::TracyLlmChat( View& view, Worker& worker, const std::vector<LlmSkill>& skills )
     : m_width( new float[NumRoles] )
     , m_markdown( &view, &worker )
+    , m_skills( skills )
 {
 }
 
