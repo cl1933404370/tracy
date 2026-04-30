@@ -280,7 +280,10 @@ void View::DrawContextSwitchList( const TimelineContext& ctx, const std::vector<
                             CallstackTooltipContents( waitStack );
                             if( ImGui::IsMouseClicked( 0 ) )
                             {
-                                m_callstackInfoWindow = waitStack;
+                                m_callstackView = {
+                                    .id = waitStack,
+                                    .thread = m_worker.DecompressThread( ev.Thread() )
+                                };
                             }
                     }
                     ImGui::EndTooltip();

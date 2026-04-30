@@ -1160,7 +1160,7 @@ bool View::DrawImpl()
     if( m_memInfo.show ) DrawMemory();
     if( m_memInfo.showAllocList ) DrawAllocList();
     if( m_compare.show ) DrawCompare();
-    if( m_callstackInfoWindow != 0 ) DrawCallstackWindow();
+    if( m_callstackView.id != 0 ) DrawCallstackWindow();
     if( m_memoryAllocInfoWindow >= 0 ) DrawMemoryAllocWindow();
     if( m_showInfo ) DrawInfo();
     if( m_sourceViewFile ) DrawTextEditor();
@@ -1314,14 +1314,17 @@ bool View::DrawImpl()
         TextFocused( "Reason:", m_worker.GetString( crash.message ) );
         if( crash.callstack != 0 )
         {
-            bool hilite = m_callstackInfoWindow == crash.callstack;
+            bool hilite = m_callstackView.id == crash.callstack;
             if( hilite )
             {
                 SetButtonHighlightColor();
             }
             if( ImGui::Button( ICON_FA_ALIGN_JUSTIFY " Call stack" ) )
             {
-                m_callstackInfoWindow = crash.callstack;
+                m_callstackView = {
+                    .id = crash.callstack,
+                    .thread = crash.thread
+                };
             }
             if( hilite )
             {

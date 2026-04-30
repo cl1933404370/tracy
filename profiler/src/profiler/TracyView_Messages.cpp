@@ -379,7 +379,7 @@ void View::DrawMessageLine( const MessageData& msg, bool hasCallstack, int& idx 
         const auto cs = msg.callstack.Val();
         if( cs != 0 )
         {
-            SmallCallstackButton( ICON_FA_ALIGN_JUSTIFY, cs, idx );
+            SmallCallstackButton( ICON_FA_ALIGN_JUSTIFY, cs, idx, tid );
             ImGui::SameLine();
             DrawCallstackCalls( cs, 6 );
         }

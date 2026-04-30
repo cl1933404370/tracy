@@ -1838,7 +1838,7 @@ void View::DrawFindZone()
                 {
                     ImGui::SameLine();
                     int idx = 0;
-                    SmallCallstackButton( " " ICON_FA_ALIGN_JUSTIFY " ", group->first, idx, false );
+                    SmallCallstackButton( " " ICON_FA_ALIGN_JUSTIFY " ", group->first, idx, 0, false );
 
                     int fidx = 0;
                     ImGui::Spacing();

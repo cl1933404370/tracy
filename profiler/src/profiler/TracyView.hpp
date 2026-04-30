@@ -252,6 +252,12 @@ private:
         uint32_t count;
     };
 
+    struct CallstackView
+    {
+        uint32_t id;
+        uint64_t thread;
+    };
+
     void InitTextEditor();
     void SetupConfig();
     void Achieve( const char* id );
@@ -264,7 +270,7 @@ private:
     void DrawTimelineFramesHeader();
     void DrawTimelineFrames( const FrameData& frames );
     void DrawTimeline();
-    void DrawSampleList( const TimelineContext& ctx, const std::vector<SamplesDraw>& drawList, const Vector<SampleData>& vec, int offset );
+    void DrawSampleList( const TimelineContext& ctx, const std::vector<SamplesDraw>& drawList, const Vector<SampleData>& vec, int offset, uint64_t tid );
     void DrawZoneList( const TimelineContext& ctx, const std::vector<TimelineDraw>& drawList, int offset, uint64_t tid, int maxDepth, double margin );
     void DrawThreadCropper( const int depth, const uint64_t tid, const float xPos, const float yPos, const float ostep, const float cropperWidth, const bool hasCtxSwitches );
     void DrawContextSwitchList( const TimelineContext& ctx, const std::vector<ContextSwitchDraw>& drawList, const Vector<ContextSwitchData>& ctxSwitch, int offset, int endOffset, bool isFiber );
@@ -391,7 +397,7 @@ private:
 
     std::vector<MemoryPage> GetMemoryPages() const;
 
-    void SmallCallstackButton( const char* name, uint32_t callstack, int& idx, bool tooltip = true );
+    void SmallCallstackButton( const char* name, uint32_t callstack, int& idx, uint64_t tid, bool tooltip = true );
     void DrawCallstackCalls( uint32_t callstack, uint16_t limit ) const;
     void DrawCallstackCalls( const CallstackFrameId* data, size_t size, uint16_t limit ) const;
     nlohmann::json GetCallstackJson( const CallstackFrameId* data, size_t size ) const;
@@ -499,7 +505,7 @@ private:
     const GpuEvent* m_gpuInfoWindow = nullptr;
     const GpuEvent* m_gpuHighlight;
     uint64_t m_gpuInfoWindowThread;
-    uint32_t m_callstackInfoWindow = 0;
+    CallstackView m_callstackView = {};
     int64_t m_memoryAllocInfoWindow = -1;
     uint64_t m_memoryAllocInfoPool = 0;
     int64_t m_memoryAllocHover = -1;

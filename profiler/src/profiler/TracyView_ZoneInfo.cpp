@@ -182,6 +182,10 @@ void View::DrawZoneInfoWindow()
     ImGui::Begin( "Zone info", &show, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
     if( !ImGui::GetCurrentWindowRead()->SkipItems )
     {
+        auto threadData = GetZoneThreadData( ev );
+        assert( threadData );
+        const auto tid = threadData->id;
+
         if( ImGui::Button( ICON_FA_MICROSCOPE " Zoom to zone" ) )
         {
             ZoomToZone( ev );
@@ -214,14 +218,17 @@ void View::DrawZoneInfoWindow()
         {
             const auto& extra = m_worker.GetZoneExtra( ev );
             ImGui::SameLine();
-            bool hilite = m_callstackInfoWindow == extra.callstack.Val();
+            bool hilite = m_callstackView.id == extra.callstack.Val();
             if( hilite )
             {
                 SetButtonHighlightColor();
             }
             if( ImGui::Button( ICON_FA_ALIGN_JUSTIFY " Call stack" ) )
             {
-                m_callstackInfoWindow = extra.callstack.Val();
+                m_callstackView = {
+                    .id = extra.callstack.Val(),
+                    .thread = tid
+                };
             }
             if( hilite )
             {
@@ -257,9 +264,6 @@ void View::DrawZoneInfoWindow()
 
         ImGui::Separator();
 
-        auto threadData = GetZoneThreadData( ev );
-        assert( threadData );
-        const auto tid = threadData->id;
         if( m_worker.HasZoneExtra( ev ) && m_worker.GetZoneExtra( ev ).name.Active() )
         {
             ImGui::PushFont( g_fonts.normal, FontBig );
@@ -1374,14 +1378,17 @@ void View::DrawGpuInfoWindow()
         if( ev.callstack.Val() != 0 )
         {
             ImGui::SameLine();
-            bool hilite = m_callstackInfoWindow == ev.callstack.Val();
+            bool hilite = m_callstackView.id == ev.callstack.Val();
             if( hilite )
             {
                 SetButtonHighlightColor();
             }
             if( ImGui::Button( ICON_FA_ALIGN_JUSTIFY " Call stack" ) )
             {
-                m_callstackInfoWindow = ev.callstack.Val();
+                m_callstackView = {
+                    .id = ev.callstack.Val(),
+                    .thread = m_gpuInfoWindowThread
+                };
             }
             if( hilite )
             {

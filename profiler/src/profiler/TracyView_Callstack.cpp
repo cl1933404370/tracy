@@ -24,10 +24,10 @@ void View::DrawCallstackWindow()
     ImGui::Begin( "Call stack", &show, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse );
     if( !ImGui::GetCurrentWindowRead()->SkipItems )
     {
-        DrawCallstackTable( m_callstackInfoWindow, true );
+        DrawCallstackTable( m_callstackView.id, true );
     }
     ImGui::End();
-    if( !show ) m_callstackInfoWindow = 0;
+    if( !show ) m_callstackView = {};
 }
 
 void View::DrawCallstackTable( uint32_t callstack, bool globalEntriesButton )
@@ -612,9 +612,9 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, bool g
     }
 }
 
-void View::SmallCallstackButton( const char* name, uint32_t callstack, int& idx, bool tooltip )
+void View::SmallCallstackButton( const char* name, uint32_t callstack, int& idx, uint64_t tid, bool tooltip )
 {
-    bool hilite = m_callstackInfoWindow == callstack;
+    bool hilite = m_callstackView.id == callstack;
     if( hilite )
     {
         SetButtonHighlightColor();
@@ -622,7 +622,10 @@ void View::SmallCallstackButton( const char* name, uint32_t callstack, int& idx,
     ImGui::PushID( idx++ );
     if( ImGui::SmallButton( name ) )
     {
-        m_callstackInfoWindow = callstack;
+        m_callstackView = {
+            .id = callstack,
+            .thread = tid
+        };
     }
     ImGui::PopID();
     if( hilite )

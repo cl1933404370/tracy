@@ -88,7 +88,7 @@ void View::DrawThread( const TimelineContext& ctx, const ThreadData& thread, con
     }
     if( hasSamples && !samplesDraw.empty() )
     {
-        DrawSampleList( ctx, samplesDraw, thread.samples, sampleOffset );
+        DrawSampleList( ctx, samplesDraw, thread.samples, sampleOffset, thread.id );
     }
 
     if( m_vd.drawLocks )

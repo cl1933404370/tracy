@@ -15,7 +15,7 @@
 namespace tracy
 {
 
-void View::DrawSampleList( const TimelineContext& ctx, const std::vector<SamplesDraw>& drawList, const Vector<SampleData>& vec, int offset )
+void View::DrawSampleList( const TimelineContext& ctx, const std::vector<SamplesDraw>& drawList, const Vector<SampleData>& vec, int offset, uint64_t tid )
 {
     const auto& wpos = ctx.wpos;
     const auto ty = ctx.ty;
@@ -67,7 +67,10 @@ void View::DrawSampleList( const TimelineContext& ctx, const std::vector<Samples
                 CallstackTooltip( it->callstack.Val() );
                 if( IsMouseClicked( 0 ) )
                 {
-                    m_callstackInfoWindow = it->callstack.Val();
+                    m_callstackView = {
+                        .id = it->callstack.Val(),
+                        .thread = tid
+                    };
                 }
             }
         }
