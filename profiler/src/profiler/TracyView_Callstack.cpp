@@ -121,7 +121,8 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, bool g
                 json["crashed"] = true;
                 if( crash.message ) json["crash_reason"] = m_worker.GetString( crash.message );
                 auto threadName = m_worker.GetThreadName( crash.thread );
-                if( strcmp( threadName, "???" ) != 0 ) json["crash_thread"] = threadName;
+                if( strcmp( threadName, "???" ) != 0 ) json["thread_name"] = threadName;
+                json["thread_id"] = crash.thread;
             }
             AddLlmAttachment( json );
         };
