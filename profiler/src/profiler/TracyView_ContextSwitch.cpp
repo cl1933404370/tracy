@@ -477,14 +477,20 @@ void View::DrawWaitStacks()
     auto expand = ImGui::TreeNode( ICON_FA_SHUFFLE " Visible threads:" );
     ImGui::SameLine();
     size_t visibleThreads = 0;
-    for( const auto& t : m_threadOrder ) if( WaitStackThread( t->id ) ) visibleThreads++;
-    if( visibleThreads == m_threadOrder.size() )
+    size_t tsz = 0;
+    for( const auto& t : m_threadOrder )
     {
-        ImGui::TextDisabled( "(%zu)", m_threadOrder.size() );
+        if( t->ctxSwitchSamples.empty() ) continue;
+        if( WaitStackThread( t->id ) ) visibleThreads++;
+        tsz++;
+    }
+    if( visibleThreads == tsz )
+    {
+        ImGui::TextDisabled( "(%zu)", tsz );
     }
     else
     {
-        ImGui::TextDisabled( "(%zi/%zu)", visibleThreads, m_threadOrder.size() );
+        ImGui::TextDisabled( "(%zu/%zu)", visibleThreads, tsz );
     }
     if( expand )
     {
@@ -523,7 +529,7 @@ void View::DrawWaitStacks()
         const auto MinWidth = std::max( 150 * GetScale(), probe );
         const int cols = std::max( 1, int( ImGui::GetContentRegionAvail().x / MinWidth ) );
 
-        const auto rows = ( m_threadOrder.size() + cols - 1 ) / cols;
+        const auto rows = ( tsz + cols - 1 ) / cols;
         const auto rowsVisible = std::min<size_t>( rows, 8 );
         const auto rowsHeight = ImGui::GetTextLineHeightWithSpacing() * rowsVisible;
         ImGui::BeginChild( "###waitstackthreadrows", ImVec2( -1, rowsHeight ) );
