@@ -196,10 +196,27 @@ void View::DrawMessages()
     if( expand )
     {
         auto& crash = m_worker.GetCrashEvent();
+
+        const auto& style = ImGui::GetStyle();
+        const auto cntWidth = ImGui::CalcTextSize( "(1234)" ).x;
+        float probe = 0;
+        for( auto& t : m_threadOrder )
+        {
+            if( t->messages.empty() ) continue;
+            float w = ImGui::GetFrameHeight() * 2 + ImGui::CalcTextSize( m_worker.GetThreadName( t->id ) ).x + cntWidth + style.ItemSpacing.x * 3;
+            if( crash.thread == t->id ) w += style.ItemSpacing.x + ImGui::CalcTextSize( ICON_FA_SKULL " Crashed" ).x;
+            if( t->isFiber ) w += style.ItemSpacing.x + ImGui::CalcTextSize( "Fiber" ).x;
+            probe = std::max( probe, w );
+        }
+        const auto MinWidth = std::max( 150 * GetScale(), probe );
+        const int cols = std::max( 1, int( ImGui::GetContentRegionAvail().x / MinWidth ) );
+
         int idx = 0;
+        ImGui::BeginTable( "##msgthreadcols", cols, ImGuiTableFlags_NoSavedSettings );
         for( const auto& t : m_threadOrder )
         {
             if( t->messages.empty() ) continue;
+            ImGui::TableNextColumn();
             ImGui::PushID( idx++ );
             const auto threadColor = GetThreadColor( t->id, 0 );
             SmallColorBox( threadColor );
@@ -222,6 +239,7 @@ void View::DrawMessages()
                 TextColoredUnformatted( ImVec4( 0.2f, 0.6f, 0.2f, 1.f ), "Fiber" );
             }
         }
+        ImGui::EndTable();
         ImGui::TreePop();
     }
 
