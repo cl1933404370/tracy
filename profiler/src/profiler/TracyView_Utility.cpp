@@ -930,7 +930,8 @@ nlohmann::json View::GetCallstackJson( const CallstackFrameId* data, size_t size
 {
     nlohmann::json json = {
         { "type", "callstack" },
-        { "frames", nlohmann::json::array() }
+        { "frames", nlohmann::json::array() },
+        { "hint", "Frame N is where frame N-1 returns to. The caller of frame N-1 may differ from frame N." }
     };
     auto& frames = json["frames"];
 
