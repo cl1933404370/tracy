@@ -848,6 +848,11 @@ void View::DrawFlameGraph()
         const auto MinWidth = std::max( 150 * GetScale(), probe );
         const int cols = std::max( 1, int( ImGui::GetContentRegionAvail().x / MinWidth ) );
 
+        const auto rows = ( tsz + cols - 1 ) / cols;
+        const auto rowsVisible = std::min<size_t>( rows, 8 );
+        const auto rowsHeight = ImGui::GetTextLineHeightWithSpacing() * rowsVisible;
+        ImGui::BeginChild( "###flamegraphthreadrows", ImVec2( -1, rowsHeight ) );
+
         int idx = 0;
         ImGui::BeginTable( "##flamegraphthreadcols", cols, ImGuiTableFlags_NoSavedSettings );
         for( const auto& t : td )
@@ -866,6 +871,7 @@ void View::DrawFlameGraph()
             }
         }
         ImGui::EndTable();
+        ImGui::EndChild();
         ImGui::TreePop();
     }
 

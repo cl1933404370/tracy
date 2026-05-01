@@ -523,6 +523,11 @@ void View::DrawWaitStacks()
         const auto MinWidth = std::max( 150 * GetScale(), probe );
         const int cols = std::max( 1, int( ImGui::GetContentRegionAvail().x / MinWidth ) );
 
+        const auto rows = ( m_threadOrder.size() + cols - 1 ) / cols;
+        const auto rowsVisible = std::min<size_t>( rows, 8 );
+        const auto rowsHeight = ImGui::GetTextLineHeightWithSpacing() * rowsVisible;
+        ImGui::BeginChild( "###waitstackthreadrows", ImVec2( -1, rowsHeight ) );
+
         int idx = 0;
         ImGui::BeginTable( "##waitstackthreadcols", cols, ImGuiTableFlags_NoSavedSettings );
         for( const auto& t : m_threadOrder )
@@ -552,6 +557,7 @@ void View::DrawWaitStacks()
             }
         }
         ImGui::EndTable();
+        ImGui::EndChild();
         ImGui::TreePop();
     }
     if( threadsChanged ) m_waitStack = 0;

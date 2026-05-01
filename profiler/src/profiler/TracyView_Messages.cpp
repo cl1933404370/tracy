@@ -211,6 +211,11 @@ void View::DrawMessages()
         const auto MinWidth = std::max( 150 * GetScale(), probe );
         const int cols = std::max( 1, int( ImGui::GetContentRegionAvail().x / MinWidth ) );
 
+        const auto rows = ( tsz + cols - 1 ) / cols;
+        const auto rowsVisible = std::min<size_t>( rows, 8 );
+        const auto rowsHeight = ImGui::GetTextLineHeightWithSpacing() * rowsVisible;
+        ImGui::BeginChild( "###msgthreadrows", ImVec2( -1, rowsHeight ) );
+
         int idx = 0;
         ImGui::BeginTable( "##msgthreadcols", cols, ImGuiTableFlags_NoSavedSettings );
         for( const auto& t : m_threadOrder )
@@ -240,6 +245,7 @@ void View::DrawMessages()
             }
         }
         ImGui::EndTable();
+        ImGui::EndChild();
         ImGui::TreePop();
     }
 
