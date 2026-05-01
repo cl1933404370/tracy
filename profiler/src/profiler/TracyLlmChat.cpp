@@ -293,7 +293,7 @@ bool TracyLlmChat::Turn( TurnRole role, std::vector<nlohmann::json>::iterator it
                 {
                     const auto id = j["id"].get<int64_t>();
                     assert( id >= 0 );
-                    const auto thread = j.contains( "thread" ) ? j["thread"].get<uint32_t>() : 0;
+                    const auto thread = j.contains( "thread_id" ) ? j["thread_id"].get<uint32_t>() : 0;
                     ImGui::SameLine();
                     if( ImGui::SmallButton( ICON_FA_EYE ) )
                     {
