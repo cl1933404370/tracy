@@ -849,7 +849,7 @@ void View::DrawFlameGraph()
         const int cols = std::max( 1, int( ImGui::GetContentRegionAvail().x / MinWidth ) );
 
         const auto rows = ( tsz + cols - 1 ) / cols;
-        const auto rowsVisible = std::min<size_t>( rows, 8 );
+        const auto rowsVisible = std::min<float>( rows, 7.5f );
         const auto rowsHeight = ImGui::GetTextLineHeightWithSpacing() * rowsVisible;
         ImGui::BeginChild( "###flamegraphthreadrows", ImVec2( -1, rowsHeight ) );
 
