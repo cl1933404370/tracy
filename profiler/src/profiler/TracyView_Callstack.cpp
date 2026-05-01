@@ -414,7 +414,8 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, uint64
                     auto filename = m_worker.GetString( frame.file );
                     auto image = frameData->imageName.Active() ? m_worker.GetString( frameData->imageName ) : nullptr;
 
-                    if( IsFrameExternal( filename, image ) )
+                    const bool isExternal = IsFrameExternal( filename, image );
+                    if( isExternal )
                     {
                         if( !m_showExternalFrames )
                         {
@@ -465,6 +466,19 @@ void View::DrawCallstackTable( const CallstackFrameId* data, size_t size, uint64
                         else if( m_worker.GetCanonicalPointer( entry ) >> 63 != 0 )
                         {
                             TextColoredUnformatted( 0xFF8888FF, txt );
+                        }
+                        else if( isExternal )
+                        {
+                            if( m_vd.shortenName == ShortenName::Never )
+                            {
+                                TextDisabledUnformatted( txt );
+                            }
+                            else
+                            {
+                                const auto normalized = ShortenZoneName( ShortenName::OnlyNormalize, txt );
+                                TextDisabledUnformatted( normalized );
+                                TooltipNormalizedName( txt, normalized );
+                            }
                         }
                         else if( m_vd.shortenName == ShortenName::Never )
                         {

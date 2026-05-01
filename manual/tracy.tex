@@ -4586,7 +4586,7 @@ Stack frame location may be displayed in the following number of ways, depending
 
 In some cases, it may not be possible to decode stack frame addresses correctly. Such frames will be presented with a dimmed '\texttt{[ntdll.dll]}' name of the image containing the frame address, or simply '\texttt{[unknown]}' if the profiler cannot retrieve even this information. Additionally, '\texttt{[kernel]}' is used to indicate unknown stack frames within the operating system's internal routines.
 
-External frames from system libraries are hidden by default. Enabling the \emph{\faShieldHalved{}~External} option will show these frames, which can be useful for debugging issues in external code.
+External frames from system libraries are hidden by default. Enabling the \emph{\faShieldHalved{}~External} option will show these frames, which can be useful for debugging issues in external code. When external frames are displayed, they are dimmed out.
 
 The \emph{\faScissors{}~Short images} option shortens the displayed executable image name to only the file name. The full path is available in the tooltip.
 
