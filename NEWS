@@ -140,6 +140,9 @@ vx.xx.x (2026-xx-xx)
 - The in-profiler user manual now properly handles links to chapters.
 - Call stack window will now show the thread viewed call stack originates
   from (if possible).
+- "Visible threads" checkboxes in messages, flame graph and wait stacks
+  windows are now displayed in multiple columns, and the maximum number of
+  visible rows is limited, with fallback to scrollable view.
 
 
 v0.13.1 (2025-12-11)
