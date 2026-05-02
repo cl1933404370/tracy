@@ -2556,40 +2556,77 @@ void SourceView::AttachRangeToLlm( size_t start, size_t stop, Worker& worker, Vi
     nlohmann::json json = {
         { "type", "assembly" },
         { "symbol", symName },
-        { "code", nlohmann::json::array() },
         { "files", nlohmann::json::object() },
-        { "hint", "code.source format is 'idx:line'. file is decoded with files[idx]." }
+        { "hint", "Code lines format is: fileIdx:line:offset:cost:assembly. To decode file names, access files[fileIdx]. Never show undecoded fileIdx to user." }
     };
-    auto& code = json["code"];
 
     std::vector<std::string> sources;
+    std::string code;
 
     const auto end = m_asm.size() < stop ? m_asm.size() : stop;
     for( size_t i=start; i<end; i++ )
     {
-        char buf[32];
-        snprintf( buf, sizeof( buf ), "+%" PRIu64, m_asm[i].addr - m_baseAddr );
-
         const auto& v = m_asm[i];
-        nlohmann::json line = {
-            { "offset", buf }
-        };
+        std::string line;
 
-        auto it = m_locMap.find( v.addr );
-        if( it != m_locMap.end() ) line["label"] = ".L" + std::to_string( it->second );
+        uint32_t srcline;
+        const auto srcidx = worker.GetLocationForAddress( v.addr, srcline );
+        if( srcidx.Active() )
+        {
+            size_t idx;
+            const auto file = worker.GetString( srcidx );
+            auto it = std::ranges::find( sources, file );
+            if( it == sources.end() )
+            {
+                idx = sources.size();
+                sources.emplace_back( file );
+            }
+            else
+            {
+                idx = std::distance( sources.begin(), it );
+            }
 
+            line = std::to_string( idx ) + ":" + std::to_string( srcline ) + ":";
+        }
+        else
+        {
+            line = "-:-:";
+        }
+
+        line += "+" + std::to_string( m_asm[i].addr - m_baseAddr ) + ":";
+
+        bool hasCost = false;
+        if( as.ipTotalAsm.local + as.ipTotalAsm.ext != 0 )
+        {
+            char buf[32];
+            auto it = as.ipCountAsm.find( v.addr );
+            if( it != as.ipCountAsm.end() )
+            {
+                auto& stat = it->second;
+                if( stat.local != 0 )
+                {
+                    snprintf( buf, sizeof(buf), "%.4f%%:", 100.0f * stat.local / as.ipTotalAsm.local );
+                    line += buf;
+                    hasCost = true;
+                }
+            }
+        }
+        if( !hasCost ) line += "-:";
+
+        line += v.mnemonic;
+
+        const char* jumpName = nullptr;
         bool hasJump = false;
         if( v.jumpAddr != 0 )
         {
             auto lit = m_locMap.find( v.jumpAddr );
             if( lit != m_locMap.end() )
             {
-                line["asm"] = v.mnemonic + " .L" + std::to_string( lit->second );
+                line += " .L" + std::to_string( lit->second );
                 hasJump = true;
             }
             else
             {
-                const char* jumpName = nullptr;
                 uint32_t jumpOffset;
                 uint64_t jumpBase = worker.GetSymbolForAddress( v.jumpAddr, jumpOffset );
                 if( jumpBase && jumpBase != m_baseAddr )
@@ -2609,58 +2646,25 @@ void SourceView::AttachRangeToLlm( size_t start, size_t stop, Worker& worker, Vi
                         if( !jumpName ) jumpName = worker.GetString( jumpSym->name );
                     }
                 }
-                if( jumpName ) line["destination"] = jumpName;
             }
         }
-        if( !hasJump )
-        {
-            if( v.operands.empty() )
-            {
-                line["asm"] = v.mnemonic;
-            }
-            else
-            {
-                line["asm"] = v.mnemonic + " " + v.operands;
-            }
-        }
-        uint32_t srcline;
-        const auto srcidx = worker.GetLocationForAddress( v.addr, srcline );
-        if( srcidx.Active() )
-        {
-            size_t idx;
-            const auto file = worker.GetString( srcidx );
-            auto it = std::ranges::find( sources, file );
-            if( it == sources.end() )
-            {
-                idx = sources.size();
-                sources.emplace_back( file );
-            }
-            else
-            {
-                idx = std::distance( sources.begin(), it );
-            }
+        if( !hasJump && !v.operands.empty() ) line += " " + v.operands;
 
-            char tmp[64];
-            snprintf( tmp, sizeof( tmp ), "%zu:%i", idx, srcline );
-            line["source"] = tmp;
-        }
-        if( as.ipTotalAsm.local + as.ipTotalAsm.ext != 0 )
+        std::string label;
+        auto it = m_locMap.find( v.addr );
+        if( it != m_locMap.end() ) label = ".L" + std::to_string( it->second );
+
+        if( jumpName || !label.empty() )
         {
-            char buf[32];
-            auto it = as.ipCountAsm.find( v.addr );
-            if( it != as.ipCountAsm.end() )
-            {
-                auto& stat = it->second;
-                if( stat.local != 0 )
-                {
-                    snprintf( buf, sizeof(buf), "%.4f%%", 100.0f * stat.local / as.ipTotalAsm.local );
-                    line["cost"] = buf;
-                }
-            }
+            line += ";";
+            if( !label.empty() ) line += " label: " + label;
+            if( jumpName ) line += " destination: " + std::string( jumpName );
         }
 
-        code.emplace_back( std::move( line ) );
+        code += line + "\n";
     }
+
+    json["code"] = code;
 
     for( size_t i=0; i<sources.size(); i++ )
     {
