@@ -207,4 +207,24 @@ bool PrintTextWrapped( const char* text, const char* end, bool strikethrough, bo
     return hovered;
 }
 
+bool DragHeightSplitter( const char* id, float& height, float minHeight, float maxHeight, float thickness )
+{
+    ImGui::InvisibleButton( id, ImVec2( -1, thickness * 1.5f ) );
+    const bool active = ImGui::IsItemActive();
+    if( active ) height = std::clamp( height + ImGui::GetIO().MouseDelta.y, minHeight, maxHeight );
+    if( ImGui::IsItemHovered() || active ) ImGui::SetMouseCursor( ImGuiMouseCursor_ResizeNS );
+
+    auto color = ImGui::GetColorU32( ImGuiCol_Separator );
+    if( active ) color = ImGui::GetColorU32( ImGuiCol_SeparatorActive );
+    else if( ImGui::IsItemHovered() ) color = ImGui::GetColorU32( ImGuiCol_SeparatorHovered );
+
+    auto draw = ImGui::GetWindowDrawList();
+    const auto p0 = ImGui::GetItemRectMin();
+    const auto p1 = ImGui::GetItemRectMax();
+    const float y = ( p0.y + p1.y ) * 0.5f;
+    draw->AddLine( ImVec2( p0.x, y ), ImVec2( p1.x, y ), color, thickness );
+
+    return active;
+}
+
 }

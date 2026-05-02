@@ -33,6 +33,7 @@ void DrawStripedRect( ImDrawList* draw, const ImVec2& wpos, double x0, double y0
 void DrawHistogramMinMaxLabel( ImDrawList* draw, int64_t tmin, int64_t tmax, ImVec2 wpos, float w, float ty );
 void PrintSource( const std::vector<Tokenizer::Line>& lines );
 bool PrintTextWrapped( const char* text, const char* end, bool strikethrough, bool underline );
+bool DragHeightSplitter( const char* id, float& height, float minHeight, float maxHeight, float thickness );
 
 
 static constexpr const uint32_t SyntaxColors[] = {
