@@ -2009,7 +2009,7 @@ void SourceView::RenderSymbolSourceView( const AddrStatData& as, Worker& worker,
                 nlohmann::json json = {
                     { "type", "source", },
                     { "file", m_source.filename() },
-                    { "hint", "Each line starts with a line number, optional: [then: space, pipe, space, then execution cost], then space, pipe, space, then the actual line content." }
+                    { "hint", "Each line starts with a line number, then optional ';' and the execution cost, then ':', then the actual line content." }
                 };
 
                 std::string code;
@@ -2018,17 +2018,17 @@ void SourceView::RenderSymbolSourceView( const AddrStatData& as, Worker& worker,
                 int idx = 1;
                 for( auto& line : lines )
                 {
-                    code += std::to_string( idx ) + " | ";
+                    code += std::to_string( idx );
 
                     auto it = as.ipCountSrc.find( idx );
                     if( it != as.ipCountSrc.end() )
                     {
                         char buf[32];
                         snprintf( buf, sizeof(buf), "%.4f%%", 100.f * it->second.local / as.ipTotalSrc.local );
-                        code += std::string( buf ) + " | ";
+                        code += ";" + std::string( buf );
                     }
 
-                    code += std::string( line.begin, line.end ) + "\n";
+                    code += ":" + std::string( line.begin, line.end ) + "\n";
                     idx++;
                 }
 
