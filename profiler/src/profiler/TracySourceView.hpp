@@ -296,6 +296,8 @@ private:
 
     std::vector<History> m_history;
     size_t m_historyCursor = 0;
+
+    float m_childCallHeight = 0;
 };
 
 }

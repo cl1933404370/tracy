@@ -681,6 +681,7 @@ void SourceView::OpenSymbol( const char* fileName, int line, uint64_t baseAddr, 
     m_sourceFiles.clear();
     m_selectedAddresses.clear();
     m_selectedAddresses.emplace( symAddr );
+    m_childCallHeight = 0;
 
     ParseSource( fileName, worker, view );
     Disassemble( baseAddr, worker );
@@ -1723,8 +1724,10 @@ void SourceView::RenderSymbolView( Worker& worker, View& view )
         }
         if( !map.empty() )
         {
+            if( m_childCallHeight == 0 ) m_childCallHeight = ImGui::GetTextLineHeightWithSpacing() * std::min<float>( 4.5f, map.size() );
+
             TextDisabledUnformatted( "Child call distribution" );
-            if( ImGui::BeginChild( "ccd", ImVec2( 0, ImGui::GetTextLineHeight() * std::min<size_t>( 4, map.size() ) + ImGui::GetStyle().WindowPadding.y ) ) )
+            if( ImGui::BeginChild( "ccd", ImVec2( 0, m_childCallHeight ) ) )
             {
                 std::vector<ChildStat> vec;
                 vec.reserve( map.size() );
@@ -1792,6 +1795,12 @@ void SourceView::RenderSymbolView( Worker& worker, View& view )
                 }
             }
             ImGui::EndChild();
+            if( map.size() >= 4 )
+            {
+                const auto minSize = ImGui::GetTextLineHeightWithSpacing() * 2.5f;
+                const auto maxSize = ImGui::GetTextLineHeightWithSpacing() * map.size();
+                DragHeightSplitter( "##childCallHeight", m_childCallHeight, minSize, std::clamp( ImGui::GetContentRegionAvail().y - 100 * GetScale(), minSize, maxSize ), 4.f * GetScale() );
+            }
             ImGui::Separator();
         }
     }
