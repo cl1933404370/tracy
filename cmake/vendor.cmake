@@ -199,6 +199,7 @@ CPMAddPackage(
     VERSION 1.0.6
     PATCHES
         "${CMAKE_CURRENT_LIST_DIR}/ppqsort-nodebug.patch"
+        "${CMAKE_CURRENT_LIST_DIR}/ppqsort-semaphore.patch"
     EXCLUDE_FROM_ALL TRUE
 )
 
