@@ -825,7 +825,16 @@ void View::CallstackTooltipContents( uint32_t idx )
                 }
                 else if( external )
                 {
-                    TextDisabledUnformatted( txt );
+                    if( m_vd.shortenName == ShortenName::Never )
+                    {
+                        TextDisabledUnformatted( txt );
+                    }
+                    else
+                    {
+                        const auto normalized = ShortenZoneName( ShortenName::OnlyNormalize, txt );
+                        TextDisabledUnformatted( normalized );
+                        TooltipNormalizedName( txt, normalized );
+                    }
                 }
                 else if( m_vd.shortenName == ShortenName::Never )
                 {
