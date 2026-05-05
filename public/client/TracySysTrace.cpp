@@ -59,9 +59,7 @@ static int SamplingFrequencyToPeriodNs( int samplingHz )
 #    include "../common/TracySystem.hpp"
 #    include "TracyProfiler.hpp"
 #    include "TracyThread.hpp"
-#    ifdef __MINGW32__
-#      include "windows/TracyETW_compat.h"
-#    endif
+#    include "windows/TracyETW_compat.h"
 #    include "windows/TracyETW.cpp"
 
 namespace tracy
