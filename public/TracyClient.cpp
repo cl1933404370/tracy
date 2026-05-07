@@ -1,3 +1,4 @@
+// ReSharper disable CppUnusedIncludeDirective
 //
 //          Tracy profiler
 //         ----------------
@@ -31,6 +32,9 @@
 #include "client/TracyAlloc.cpp"
 #include "client/TracyOverride.cpp"
 #include "client/TracyKCore.cpp"
+#  ifdef TRACY_SAVE_NO_SEND
+#    include "client/TracyLiteAll.cpp"
+#  endif
 
 #ifdef TRACY_ROCPROF
 #  include "client/TracyRocprof.cpp"
