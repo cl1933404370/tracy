@@ -366,7 +366,9 @@ public:
     static DumpManager& Instance();
     void Initialize(const DumpConfig& config = DumpConfig());
     bool ExportNow();
+#ifdef TRACYLITE_PERFETTO
     bool ExportAsPerfetto(const char* filepath = nullptr);
+#endif
 
     using PreExportCallback = std::function<void()>;
     void SetPreExportCallback( const PreExportCallback& cb);
@@ -426,7 +428,11 @@ private:
     static auto& __tracylite_auto_dump = ::tracylite::AutoDumpInit::Instance(__VA_ARGS__)
 
 #define TRACYLITE_EXPORT() ::tracylite::DumpManager::Instance().ExportNow()
-#define TRACYLITE_EXPORT_PERFETTO(filepath) ::tracylite::DumpManager::Instance().ExportAsPerfetto(filepath)
+#ifdef TRACYLITE_PERFETTO
+#  define TRACYLITE_EXPORT_PERFETTO(filepath) ::tracylite::DumpManager::Instance().ExportAsPerfetto(filepath)
+#else
+#  define TRACYLITE_EXPORT_PERFETTO(filepath) ((void)0)
+#endif
 #define TRACYLITE_SET_DUMP_CONFIG(config) ::tracylite::DumpManager::Instance().UpdateConfig(config)
 #define TRACYLITE_GET_DUMP_STATS() ::tracylite::DumpManager::Instance().GetStats()
 #define TRACYLITE_SET_PRE_EXPORT(callback) ::tracylite::DumpManager::Instance().SetPreExportCallback(callback)

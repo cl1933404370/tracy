@@ -18,5 +18,6 @@ TRACYNOSEND_API int TracyNoSend_RunExportToFilePerf(int threadCount,
                                                     long long* writeElapsedUs,
                                                     size_t* fileSize,
                                                     double* throughputMbPerSec);
+TRACYNOSEND_API int TracyNoSend_RunChunkSelfTest();
 
 #endif

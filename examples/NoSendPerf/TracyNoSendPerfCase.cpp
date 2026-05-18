@@ -1,6 +1,11 @@
+#if defined(USE_TRACY_HCOM_BUNDLE)
+#include "TracyHcom.hpp"
+#else
 #include "../../public/client/TracyLiteAll.hpp"
 #if defined(TRACYLITE_PERFETTO)
 #include "../../public/client/TracyLitePerfetto.hpp"
+#endif
+#include "../../public/client/TracyLiteChunkWriter.hpp"
 #endif
 
 #include <chrono>
@@ -197,7 +202,279 @@ namespace
 
         return result;
     }
-}
+
+#if defined(TRACYLITE_PERFETTO)
+    struct ChunkSelfTestStats
+    {
+        int failures = 0;
+        size_t traceSize = 0;
+        size_t chunkCount = 0;
+        size_t maxLineLength = 0;
+        long long encodeElapsedUs = 0;
+        long long decodeElapsedUs = 0;
+        bool rebuiltTraceWritten = false;
+    };
+
+    // ── Chunk-transport demo ─────────────────────────────────────────────────
+    //
+    // Simulates an environment where the only egress path is a text log library
+    // whose per-line limit is 511 characters (512 bytes including NUL).
+    //
+    // Replace the printf lambda with your real log-library call, e.g.:
+    //   [](const char* line) { MY_LOG_INFO("%s", line); return true; }
+    //
+    // To reconstruct on the host:
+    //   python scripts/tracylite_reconstruct.py device.log out.perfetto-trace
+    //
+    ChunkSelfTestStats RunChunkTransportDemo()
+    {
+        ChunkSelfTestStats stats{};
+        auto CHECK = [&](bool cond, const char* msg)
+        {
+            if (!cond) { std::fprintf(stderr, "[chunk-self-test] FAIL: %s\n", msg); ++stats.failures; }
+        };
+
+        // A. Known-vector checks
+        {
+            const uint8_t kVec[] = "123456789";
+            CHECK(tracylite::Crc32(kVec, 9) == 0xCBF43926u, "CRC32 known-vector");
+        }
+        struct B64Vec { const char* raw; size_t len; const char* expected; };
+        static const B64Vec kB64[] = {
+            { "f",      1, "Zg=="     },
+            { "fo",     2, "Zm8="     },
+            { "foo",    3, "Zm9v"     },
+            { "foob",   4, "Zm9vYg==" },
+            { "fooba",  5, "Zm9vYmE=" },
+            { "foobar", 6, "Zm9vYmFy" },
+        };
+        for (const auto& v : kB64)
+        {
+            char buf[16] = {};
+            const size_t outLen = tracylite::Base64Encode(
+                reinterpret_cast<const uint8_t*>(v.raw), v.len, buf);
+            buf[outLen] = '\0';
+            CHECK(std::strcmp(buf, v.expected) == 0, v.expected);
+        }
+
+        // B+C. Line-budget + full roundtrip
+        tracylite::Collector::Initialize(32 * 1024 * 1024);
+        EmitWorkload(0, 1000);
+        const auto trace =
+            tracylite::PerfettoNativeExporter::ExportToBuffer(tracylite::Collector::Instance());
+        stats.traceSize = trace.size();
+        CHECK(!trace.empty(), "ExportToBuffer non-empty");
+
+        // Inline Base64 decoder (RFC 4648, no newlines, strict validation)
+        auto b64DecodeStrict = [](const char* src, size_t srcLen, std::vector<uint8_t>& dst) -> bool
+        {
+            if (!src || srcLen == 0 || (srcLen % 4) != 0)
+            {
+                return false;
+            }
+
+            static const int8_t kDec[256] = {
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,62,-1,-1,-1,63,
+                52,53,54,55,56,57,58,59,60,61,-1,-1,-1, 0,-1,-1,
+                -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,
+                15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,-1,
+                -1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,
+                41,42,43,44,45,46,47,48,49,50,51,-1,-1,-1,-1,-1,
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+                -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+            };
+
+            for (size_t i = 0; i + 3 < srcLen; i += 4)
+            {
+                const bool isLastQuartet = (i + 4 == srcLen);
+                const char c0 = src[i];
+                const char c1 = src[i + 1];
+                const char c2 = src[i + 2];
+                const char c3 = src[i + 3];
+
+                if (c0 == '=' || c1 == '=')
+                {
+                    return false;
+                }
+
+                const int a = static_cast<int>(kDec[static_cast<uint8_t>(c0)]);
+                const int b = static_cast<int>(kDec[static_cast<uint8_t>(c1)]);
+                if (a < 0 || b < 0)
+                {
+                    return false;
+                }
+
+                if (c2 == '=')
+                {
+                    if (c3 != '=' || !isLastQuartet)
+                    {
+                        return false;
+                    }
+                    dst.push_back(static_cast<uint8_t>((a << 2) | (b >> 4)));
+                    continue;
+                }
+
+                const int c = static_cast<int>(kDec[static_cast<uint8_t>(c2)]);
+                if (c < 0)
+                {
+                    return false;
+                }
+
+                dst.push_back(static_cast<uint8_t>((a << 2) | (b >> 4)));
+                dst.push_back(static_cast<uint8_t>(((b & 0xF) << 4) | (c >> 2)));
+
+                if (c3 == '=')
+                {
+                    if (!isLastQuartet)
+                    {
+                        return false;
+                    }
+                    continue;
+                }
+
+                const int d = static_cast<int>(kDec[static_cast<uint8_t>(c3)]);
+                if (d < 0)
+                {
+                    return false;
+                }
+
+                dst.push_back(static_cast<uint8_t>(((c & 0x3) << 6) | d));
+            }
+
+            return true;
+        };
+
+        // D. Strict decode negative cases
+        {
+            std::vector<uint8_t> out;
+            CHECK(!b64DecodeStrict("Zm9*", 4, out), "strict b64 rejects invalid char");
+            out.clear();
+            CHECK(!b64DecodeStrict("Zg=", 3, out), "strict b64 rejects invalid length");
+            out.clear();
+            CHECK(!b64DecodeStrict("=m9v", 4, out), "strict b64 rejects leading padding");
+            out.clear();
+            CHECK(!b64DecodeStrict("Zm=v", 4, out), "strict b64 rejects mid padding");
+        }
+
+        struct ChunkRecord { size_t seq; uint32_t crc; std::string b64; };
+        std::vector<ChunkRecord> records;
+        bool budgetOk = true;
+
+        const auto logFn = [&](const char* line) -> bool
+        {
+            constexpr size_t kLogLineMaxChars = 511;
+            constexpr size_t kLogLineMaxBytesWithNul = 512;
+            const size_t len = std::strlen(line);
+            if (stats.maxLineLength < len) stats.maxLineLength = len;
+            if (len > kLogLineMaxChars || (len + 1) > kLogLineMaxBytesWithNul)
+            {
+                budgetOk = false;
+                return false;
+            }
+
+            // Format: TRACYLITE_CHUNK|<id>|<seq>|<total>|<crc32>|<base64>
+            const char* p0 = std::strchr(line, '|');
+            if (!p0) return false;
+            const char* p1 = std::strchr(p0 + 1, '|');
+            if (!p1) return false;
+            const char* p2 = std::strchr(p1 + 1, '|');
+            if (!p2) return false;
+            const char* p3 = std::strchr(p2 + 1, '|');
+            if (!p3) return false;
+            const char* p4 = std::strchr(p3 + 1, '|');
+            if (!p4) return false;
+
+            std::string seqField(p1 + 1, p2);
+            std::string crcField(p3 + 1, p4);
+            const char* b64Str = p4 + 1;
+            if (*b64Str == '\0') return false;
+
+            ChunkRecord rec;
+            rec.seq = static_cast<size_t>(std::strtoul(seqField.c_str(), nullptr, 10));
+            rec.crc = static_cast<uint32_t>(std::strtoul(crcField.c_str(), nullptr, 16));
+            rec.b64 = b64Str;
+            records.push_back(std::move(rec));
+            return true;
+        };
+
+        char traceId[9];
+        std::snprintf(traceId, sizeof(traceId), "%08X", 0x5E1FU);
+        const auto encodeStart = std::chrono::steady_clock::now();
+        const bool writeOk = tracylite::ChunkWrite(trace.data(), trace.size(), traceId, logFn);
+        const auto encodeEnd = std::chrono::steady_clock::now();
+        stats.encodeElapsedUs = std::chrono::duration_cast<std::chrono::microseconds>(encodeEnd - encodeStart).count();
+        stats.chunkCount = records.size();
+
+        CHECK(writeOk,          "ChunkWrite returned true");
+        CHECK(budgetOk,         "all lines <= 511 chars (+NUL <= 512 bytes)");
+        CHECK(!records.empty(), "at least one chunk emitted");
+
+        std::vector<uint8_t> rebuilt;
+        rebuilt.reserve(trace.size());
+        bool crcAllOk = true;
+
+        const auto decodeStart = std::chrono::steady_clock::now();
+        for (const auto& rec : records)
+        {
+            std::vector<uint8_t> chunk;
+            if (!b64DecodeStrict(rec.b64.c_str(), rec.b64.size(), chunk))
+            {
+                std::fprintf(stderr, "[chunk-self-test] strict base64 decode failed seq=%zu\n", rec.seq);
+                crcAllOk = false;
+                continue;
+            }
+            const uint32_t actual = tracylite::Crc32(chunk.data(), chunk.size());
+            if (actual != rec.crc)
+            {
+                std::fprintf(stderr, "[chunk-self-test] CRC mismatch seq=%zu expected=%08X got=%08X\n",
+                             rec.seq, rec.crc, actual);
+                crcAllOk = false;
+            }
+            rebuilt.insert(rebuilt.end(), chunk.begin(), chunk.end());
+        }
+        const auto decodeEnd = std::chrono::steady_clock::now();
+        stats.decodeElapsedUs = std::chrono::duration_cast<std::chrono::microseconds>(decodeEnd - decodeStart).count();
+
+        CHECK(crcAllOk,                       "per-chunk CRC all match");
+        CHECK(rebuilt.size() == trace.size(), "reassembled size == original");
+        CHECK(rebuilt == trace,               "reassembled bytes identical to original");
+
+        static constexpr const char* kRebuiltTracePath = "tracylite_chunk_selftest_rebuilt.perfetto-trace";
+        const bool rebuiltWriteOk = !rebuilt.empty() && WriteTraceToFile(kRebuiltTracePath, rebuilt);
+        stats.rebuiltTraceWritten = rebuiltWriteOk;
+        CHECK(rebuiltWriteOk, "rebuilt trace file written");
+
+        if (stats.failures == 0)
+            std::printf("[chunk-self-test] ALL PASS trace=%zu bytes chunks=%zu max_line=%zu encode_us=%lld decode_us=%lld out=%s\n",
+                        stats.traceSize,
+                        stats.chunkCount,
+                        stats.maxLineLength,
+                        stats.encodeElapsedUs,
+                        stats.decodeElapsedUs,
+                        kRebuiltTracePath);
+        else
+            std::fprintf(stderr,
+                         "[chunk-self-test] %d FAILURE(S) trace=%zu bytes chunks=%zu max_line=%zu encode_us=%lld decode_us=%lld\n",
+                         stats.failures,
+                         stats.traceSize,
+                         stats.chunkCount,
+                         stats.maxLineLength,
+                         stats.encodeElapsedUs,
+                         stats.decodeElapsedUs);
+
+        return stats;
+    }
+#endif // TRACYLITE_PERFETTO
+
+} // namespace
 
 #if defined(_WIN32)
 #define TRACYNOSEND_API extern "C" __declspec(dllexport)
@@ -229,4 +506,15 @@ TRACYNOSEND_API int TracyNoSend_RunExportToFilePerf(const int threadCount,
     if (fileSize) *fileSize = result.fileSize;
     if (throughputMbPerSec) *throughputMbPerSec = result.throughputMbPerSec;
     return result.exportElapsedUs >= 0 ? 0 : -1;
+}
+
+TRACYNOSEND_API int TracyNoSend_RunChunkSelfTest()
+{
+#if defined(TRACYLITE_PERFETTO)
+    const auto stats = RunChunkTransportDemo();
+    return stats.failures == 0 ? 0 : -1;
+#else
+    std::fprintf(stderr, "[chunk-self-test] TRACYLITE_PERFETTO not enabled\n");
+    return -1;
+#endif
 }

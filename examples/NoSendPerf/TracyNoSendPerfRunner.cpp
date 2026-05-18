@@ -18,6 +18,7 @@ TRACYNOSEND_API int TracyNoSend_RunExportToFilePerf(int threadCount,
                                                     long long* writeElapsedUs,
                                                     size_t* fileSize,
                                                     double* throughputMbPerSec);
+TRACYNOSEND_API int TracyNoSend_RunChunkSelfTest();
 
 namespace
 {
@@ -55,6 +56,13 @@ int RunExportBenchmark()
                 throughputMbPerSec);
     return fileRc == 0 ? 0 : 1;
 }
+
+int RunChunkSelfTest()
+{
+    const int rc = TracyNoSend_RunChunkSelfTest();
+    std::printf("[TracyNoSendPerfRunner] chunk-self-test rc=%d\n", rc);
+    return rc == 0 ? 0 : 1;
+}
 }
 
 int main( int argc, char** argv )
@@ -66,12 +74,14 @@ int main( int argc, char** argv )
     {
         if( std::strcmp( argv[1], "zone" ) == 0 ) return RunZoneBenchmark();
         if( std::strcmp( argv[1], "export" ) == 0 ) return RunExportBenchmark();
+        if( std::strcmp( argv[1], "chunk" ) == 0 ) return RunChunkSelfTest();
 
-        std::fprintf( stderr, "Usage: %s [zone|export]\n", argv[0] );
+        std::fprintf( stderr, "Usage: %s [zone|export|chunk]\n", argv[0] );
         return 2;
     }
 
     const int zoneRc = RunZoneBenchmark();
     const int fileRc = RunExportBenchmark();
-    return ( zoneRc == 0 && fileRc == 0 ) ? 0 : 1;
+    const int chunkRc = RunChunkSelfTest();
+    return ( zoneRc == 0 && fileRc == 0 && chunkRc == 0 ) ? 0 : 1;
 }

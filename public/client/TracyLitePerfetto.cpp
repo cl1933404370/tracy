@@ -21,9 +21,34 @@
 
 #include "TracyLiteAll.hpp"
 
+#ifdef _WIN32
+#  ifdef min
+#    pragma push_macro("min")
+#    undef min
+#    define TRACYLITE_RESTORE_MIN_MACRO
+#  endif
+#  ifdef max
+#    pragma push_macro("max")
+#    undef max
+#    define TRACYLITE_RESTORE_MAX_MACRO
+#  endif
+#endif
+
 // We only need the protozero serializer and pbzero generated types from the
 // amalgamated SDK header.  No Perfetto runtime is initialised.
 #include <perfetto.h>
+
+#ifdef _WIN32
+#  ifdef TRACYLITE_RESTORE_MIN_MACRO
+#    pragma pop_macro("min")
+#    undef TRACYLITE_RESTORE_MIN_MACRO
+#  endif
+#  ifdef TRACYLITE_RESTORE_MAX_MACRO
+#    pragma pop_macro("max")
+#    undef TRACYLITE_RESTORE_MAX_MACRO
+#  endif
+#endif
+
 // ReSharper disable once CppUnusedIncludeDirective
 #include <cstring>
 #include <cstdio>

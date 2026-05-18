@@ -177,3 +177,35 @@ g++ -O3 -flto -fprofile-use=./pgo-data -fprofile-correction ...
 ```
 
 进阶：Linux 上还可以走 `AutoFDO`（基于 `perf record` 采样而非插桩），训练侵入更低，但需要带 `LBR` 的 CPU 与 `create_gcov` 工具链支撑。
+
+## 9. WSL2 验证补记（2026-05-16）
+
+这次在 WSL2 / Linux 下重新核对了 `RunChunkTransportDemo()`、`ChunkSelfTest`、以及 Python 离线重建脚本。
+
+结论先说：C++ 侧的 chunk self-test 已通过，Python 脚本也能正常做离线重建。当前 Linux 侧遇到的主要问题不是代码逻辑，而是一次 CMake 重新配置时碰到网络依赖下载失败。
+
+### 9.1 已验证的路径
+
+- C++ 自测路径：`RunChunkTransportDemo()` 内联 `b64Decode(...)`，`ChunkWrite -> logFn -> b64Decode -> CRC -> reassemble -> WriteTraceToFile`。
+- Python 离线路径：`scripts/tracylite_reconstruct.py` 的 `parse_log()` + `base64.b64decode()` + `reassemble()`。
+
+### 9.2 实测结果
+
+- `ctest --test-dir out/wsl2-all-hcomm-release -R TracyNoSendPerf.ChunkSelfTest --output-on-failure -V`
+  - 通过，`TracyNoSendPerf.ChunkSelfTest` 返回 `0`。
+  - 运行日志显示：`ALL PASS trace=398654 bytes chunks=1146 max_line=510 encode_us=4449 decode_us=5409`。
+- `out/wsl2-all-hcomm-release/examples/NoSendPerf/TracyNoSendPerfRunner chunk`
+  - 通过，输出 `chunk-self-test rc=0`。
+- Python 合成样本验证：`tracylite_reconstruct.py` 成功把 `TRACYLITE_CHUNK|...` 日志还原成 `b'hello world'`。
+
+### 9.3 Linux 侧问题
+
+- 在尝试重新配置 `linux-all-hcomm-release` / `wsl2-all-hcomm-release` 时，CMake 触发了 `ppqsort` 的 `CPM.cmake` 在线下载逻辑，GitHub 请求失败会让配置中断。
+- 这个问题是网络/依赖获取层面的，不是 `RunChunkTransportDemo()` 或 `ChunkSelfTest` 本体逻辑错误。
+- 现有已生成的 WSL2 构建树可以继续跑测试；若要完全干净地重配，需要保证 `CPM_0.38.7.cmake` 等 bootstrap 文件在本地缓存可用，或者允许联网。
+
+### 9.4 当前判断
+
+- 你提到的 `logFn` 字段解析问题，在当前源码路径下没有再复现。
+- `chunks=0` 的问题也没有再复现，现在线上输出是正常重组。
+- 如果下一步要做更严格的 Linux 回归，我建议把 `ChunkSelfTest` 单独纳入一个不依赖外网的构建/测试路径，避免 CPM 在线下载把验证卡住。

@@ -702,6 +702,7 @@ void DumpManager::ExportNowOnce()
     } );
 }
 
+#ifdef TRACYLITE_PERFETTO
 bool DumpManager::ExportNow()
 {
     try
@@ -727,6 +728,9 @@ bool DumpManager::ExportNow()
         return false;
     }
 }
+#else
+bool DumpManager::ExportNow() { return false; }
+#endif
 
 void DumpManager::SetPreExportCallback( const PreExportCallback& cb)
 {
@@ -746,6 +750,7 @@ void DumpManager::UpdateConfig(const DumpConfig& config)
     mConfig_ = config;
 }
 
+#ifdef TRACYLITE_PERFETTO
 bool DumpManager::ExportAsPerfetto(const char* filepath)
 {
     try
@@ -800,6 +805,7 @@ bool DumpManager::ExportAsPerfetto(const char* filepath)
         return false;
     }
 }
+#endif // TRACYLITE_PERFETTO
 
 DumpManager::Stats DumpManager::GetStats() const
 {

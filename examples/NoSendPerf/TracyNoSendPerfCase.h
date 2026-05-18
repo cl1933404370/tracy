@@ -13,5 +13,8 @@ TRACYNOSEND_API int TracyNoSend_RunExportToFilePerf(int threadCount,
                                                     int iterationsPerThread,
                                                     const char* outputPath,
                                                     long long* exportElapsedUs,
+                                                    long long* serializeElapsedUs,
+                                                    long long* writeElapsedUs,
                                                     size_t* fileSize,
                                                     double* throughputMbPerSec);
+TRACYNOSEND_API int TracyNoSend_RunChunkSelfTest();
