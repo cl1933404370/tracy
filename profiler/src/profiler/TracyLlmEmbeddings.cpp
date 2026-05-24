@@ -62,7 +62,7 @@ std::vector<TracyLlmEmbeddings::Result> TracyLlmEmbeddings::Search( const std::v
     for( size_t i=0; i<result.size(); i++ )
     {
         ret.emplace_back( Result {
-            .idx = result[i].member.key,
+            .idx = static_cast<size_t>( result[i].member.key ),
             .distance = result[i].distance
         } );
     }

@@ -1,0 +1,61 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 16,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "cacheVariables": {
+        "CPM_SOURCE_CACHE": "${sourceDir}/../.cpm-cache"
+      }
+    },
+    {
+      "name": "test-debug",
+      "displayName": "[Test] Debug",
+      "description": "Build tracy-test instrumentation example (Debug)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/../out/test-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "TRACY_ENABLE": "ON"
+      }
+    },
+    {
+      "name": "test-release",
+      "displayName": "[Test] Release",
+      "description": "Build tracy-test instrumentation example (Release)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/../out/test-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "TRACY_ENABLE": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "test-debug-build",
+      "displayName": "[Test] Debug Build",
+      "configurePreset": "test-debug"
+    },
+    {
+      "name": "test-release-build",
+      "displayName": "[Test] Release Build",
+      "configurePreset": "test-release"
+    }
+  ]
+}
