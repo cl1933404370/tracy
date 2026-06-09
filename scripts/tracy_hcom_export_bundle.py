@@ -115,7 +115,28 @@ def compute_manifest(repo: pathlib.Path, mode: str, cxx: str) -> List[str]:
     files = parse_mm_output(mm, prefixes)
 
     if mode == "perfetto":
+        perfetto_dir = repo / "scripts/perfetto-sdk-offline"
         files.add("scripts/perfetto-sdk-offline/perfetto.h")
+
+        # TracyHcomBundle.cmake requires at least one implementation TU.
+        # Prefer protozero subset when present; keep perfetto.cc as fallback.
+        has_impl = False
+        for rel in (
+            "scripts/perfetto-sdk-offline/perfetto_protozero.cc",
+            "scripts/perfetto-sdk-offline/perfetto.cc",
+        ):
+            if (repo / rel).exists():
+                files.add(rel)
+                has_impl = True
+
+        if (perfetto_dir / "VERSION").exists():
+            files.add("scripts/perfetto-sdk-offline/VERSION")
+
+        if not has_impl:
+            raise FileNotFoundError(
+                "Perfetto mode requires implementation source: "
+                "scripts/perfetto-sdk-offline/perfetto_protozero.cc or perfetto.cc"
+            )
 
     for f in EXTRA_PUBLIC_FILES:
         files.add(normalize_relpath(f))
@@ -219,10 +240,41 @@ def verify_export(out_dir: pathlib.Path, mode: str, cxx: str) -> None:
     try:
         run(compile_cmd, verify_dir)
 
+        extra_objects: List[str] = []
+        if mode == "perfetto":
+            perfetto_sources = [
+                pathlib.Path("../scripts/perfetto-sdk-offline/perfetto_protozero.cc"),
+                pathlib.Path("../scripts/perfetto-sdk-offline/perfetto.cc"),
+            ]
+            selected: pathlib.Path | None = None
+            for src in perfetto_sources:
+                if (verify_dir / src).exists():
+                    selected = src
+                    break
+
+            if selected is None:
+                raise RuntimeError(
+                    "verify_export(perfetto): no perfetto implementation source found"
+                )
+
+            perfetto_compile_cmd = [
+                cxx,
+                "-fPIC",
+                "-std=c++17",
+                "-I../scripts/perfetto-sdk-offline",
+                "-c",
+                str(selected),
+                "-o",
+                "perfetto_impl.o",
+            ]
+            run(perfetto_compile_cmd, verify_dir)
+            extra_objects.append("perfetto_impl.o")
+
         link_cmd = [
             cxx,
             "-shared",
             "tracy_hcom.o",
+            *extra_objects,
             "-o",
             "libtracy_hcom_export.so",
             "-ldl",

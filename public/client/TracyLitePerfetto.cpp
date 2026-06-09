@@ -165,11 +165,11 @@ template<size_t NP, size_t NS>
     std::memcpy( dst, variantBuf, variantSize );
     dst += variantSize;
 
-    for( const auto& r : ranges )
+    for( const auto& [begin, end] : ranges )
     {
-        const size_t n = static_cast<size_t>( r.end - r.begin );
+        const size_t n = static_cast<size_t>( end - begin );
         if( n == 0 ) continue;
-        std::memcpy( dst, r.begin, n );
+        std::memcpy( dst, begin, n );
         dst += n;
     }
 }
@@ -315,7 +315,7 @@ struct CounterKey
     const auto it = cache.find( key );
     if( it != cache.end() ) return it->second;
     const char* s = view.stringTable_->Get( nameIdx );
-    cache.emplace( key, s );
+    cache.try_emplace( key, s );
     return s;
 }
 
@@ -358,7 +358,7 @@ void HandleCounterPreScan(
         uuid = counterTrackMode == PerfettoNativeExporter::CounterTrackMode::PerThread
             ? CounterTrackUuid( view.packet_.threadId_, cname )
             : ProcessCounterTrackUuid( cname );
-        counterUuidCache.emplace( key, uuid );
+        counterUuidCache.try_emplace( key, uuid );
     }
     if( counterUuids.insert( uuid ).second )
     {
@@ -385,7 +385,7 @@ void HandleCounterEmit(
         : ( counterTrackMode == PerfettoNativeExporter::CounterTrackMode::PerThread
             ? CounterTrackUuid( packet.threadId_, name )
             : ProcessCounterTrackUuid( name ) );
-    if( itUuid == counterUuidCache.end() ) counterUuidCache.emplace( key, counterUuid );
+    if( itUuid == counterUuidCache.end() ) counterUuidCache.try_emplace( key, counterUuid );
     auto* te = pkt->set_track_event();
     te->set_type( perfetto::protos::pbzero::TrackEvent::TYPE_COUNTER );
     te->set_track_uuid( counterUuid );

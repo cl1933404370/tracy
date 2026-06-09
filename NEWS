@@ -2,6 +2,16 @@ Note: There is no guarantee that version mismatched client and server will
 be able to talk with each other. Network protocol breakages won't be listed
 here.
 
+Unreleased
+----------
+
+- TracyHcom PERFETTO embedding now wires a concrete Perfetto implementation
+  source (prefer `perfetto_protozero.cc`, fallback `perfetto.cc`) or an
+  existing `perfetto_sdk` target, and fails configuration early when no
+  implementation is available.
+- `tracy_hcom_export_bundle.py --mode perfetto` now exports Perfetto
+  implementation source files and validates linkability with `--verify`.
+
 v0.13.1 (2025-12-11)
 --------------------
 

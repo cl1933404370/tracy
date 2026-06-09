@@ -16,13 +16,19 @@
 #   # Optional: enable Perfetto export
 #   tracyhcom_embed(my_so PERFETTO)
 #
-#   # Perfetto requires perfetto.h.  Supply its directory via:
-#   target_include_directories(my_so PRIVATE /path/to/perfetto/sdk)
-#   # or link the perfetto_sdk target if available.
+#   # Perfetto integration (in priority order):
+#   #   1) If a perfetto_sdk target exists, it is linked automatically.
+#   #   2) Else, use TRACYHCOM_PERFETTO_SDK_DIR if provided.
+#   #   3) Else, fallback to ${TRACY_ROOT}/scripts/perfetto-sdk-offline.
+#   #
+#   # If no Perfetto implementation source is found, configuration fails.
 #
 # ── Variables set by this file ───────────────────────────────────────────────
 #   TRACYHCOM_SOURCE_FILE  – absolute path to TracyHcom.cpp
 #   TRACYHCOM_INCLUDE_DIRS – list of required include directories
+#   TRACYHCOM_PERFETTO_SDK_DIR (optional)
+#     Absolute path to a Perfetto amalgamated SDK directory containing
+#     perfetto.h plus either perfetto_protozero.cc or perfetto.cc.
 #
 # ── Requirements ─────────────────────────────────────────────────────────────
 #   TRACY_ROOT     must be set before including this file
@@ -97,6 +103,51 @@ function(tracyhcom_embed TARGET)
 		target_compile_definitions(${_tracyhcom_obj_target} PRIVATE
 			TRACYHCOM_ENABLE_PERFETTO=1
 		)
+
+		set(_tracyhcom_perfetto_wired FALSE)
+
+		# Prefer an already-built perfetto_sdk target when available.
+		if(TARGET perfetto_sdk)
+			target_link_libraries(${TARGET} PRIVATE perfetto_sdk)
+			target_include_directories(${_tracyhcom_obj_target} PRIVATE
+				$<TARGET_PROPERTY:perfetto_sdk,INCLUDE_DIRECTORIES>)
+			set(_tracyhcom_perfetto_wired TRUE)
+		endif()
+
+		# Fallback: compile perfetto amalgamated source directly into the object target.
+		if(NOT _tracyhcom_perfetto_wired)
+			if(DEFINED TRACYHCOM_PERFETTO_SDK_DIR)
+				set(_tracyhcom_perfetto_sdk_dir "${TRACYHCOM_PERFETTO_SDK_DIR}")
+			else()
+				set(_tracyhcom_perfetto_sdk_dir "${TRACY_ROOT}/scripts/perfetto-sdk-offline")
+			endif()
+
+			if(EXISTS "${_tracyhcom_perfetto_sdk_dir}/perfetto.h")
+				if(EXISTS "${_tracyhcom_perfetto_sdk_dir}/perfetto_protozero.cc")
+					set(_tracyhcom_perfetto_src "${_tracyhcom_perfetto_sdk_dir}/perfetto_protozero.cc")
+				elseif(EXISTS "${_tracyhcom_perfetto_sdk_dir}/perfetto.cc")
+					set(_tracyhcom_perfetto_src "${_tracyhcom_perfetto_sdk_dir}/perfetto.cc")
+				else()
+					message(FATAL_ERROR
+						"[TracyHcomBundle] PERFETTO requested but no implementation source found in: ${_tracyhcom_perfetto_sdk_dir}\n"
+						"Expected one of: perfetto_protozero.cc, perfetto.cc")
+				endif()
+
+				target_sources(${_tracyhcom_obj_target} PRIVATE "${_tracyhcom_perfetto_src}")
+				target_include_directories(${_tracyhcom_obj_target} PRIVATE
+					"${_tracyhcom_perfetto_sdk_dir}")
+				set(_tracyhcom_perfetto_wired TRUE)
+			endif()
+		endif()
+
+		if(NOT _tracyhcom_perfetto_wired)
+			message(FATAL_ERROR
+				"[TracyHcomBundle] PERFETTO requested but no Perfetto SDK was wired.\n"
+				"Provide one of:\n"
+				"  1) target perfetto_sdk\n"
+				"  2) TRACYHCOM_PERFETTO_SDK_DIR=/path/to/sdk (contains perfetto.h + perfetto.cc/protozero.cc)\n"
+				"  3) ${TRACY_ROOT}/scripts/perfetto-sdk-offline with required files")
+		endif()
 
 		# TracyHcom.cpp #includes TracyLitePerfetto.cpp which is large;
 		# MSVC needs /bigobj and the file must be compiled as C++17.

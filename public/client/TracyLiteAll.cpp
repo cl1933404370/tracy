@@ -262,8 +262,8 @@ StringRef StringTable::Intern(const char* str)
 
     const auto idx = static_cast<uint32_t>(mStrings_.size());
     mStrings_.push_back( std::move( key ) );
-    mStringMap_[mStrings_.back()] = idx;
-    mPtrMap_[str] = idx;
+    mStringMap_.try_emplace( mStrings_.back(), idx );
+    mPtrMap_.try_emplace( str, idx );
     mLastPtr_ = str;
     mLastPtrIdx_ = idx;
     return { idx };
@@ -276,7 +276,7 @@ StringRef StringTable::Intern(const std::string& str)
 
     const auto idx = static_cast<uint32_t>(mStrings_.size());
     mStrings_.push_back(str);
-    mStringMap_[str] = idx;
+    mStringMap_.try_emplace(str, idx);
     return { idx };
 }
 
@@ -582,7 +582,7 @@ struct TimestampConverter
         return converter;
     }
 
-    uint64_t RawToNs( const uint64_t raw ) const
+    constexpr uint64_t RawToNs( const uint64_t raw ) const
     {
         if( mRawIsNs_ ) return raw;
         return static_cast<uint64_t>( static_cast<double>( raw ) * mNsPerTick_ );
