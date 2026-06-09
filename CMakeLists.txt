@@ -402,7 +402,12 @@ if (TRACY_SAVE_NO_SEND)
             PROPERTIES COMPILE_FLAGS "-std=c++17")
     endif()
 
-    # ── TracyLiteAll.cpp (C++17 TU) ────────────────────────────────────
+    # ── TracyLiteAll.cpp (C++17 separate TU) ──────────────────────────────
+    # TracyLiteAll.cpp was previously #include'd into TracyClient.cpp (unity
+    # build), which meant set_source_files_properties had no effect on it.
+    # Now compiled as a separate TU so -std=c++17 actually applies.
+    target_sources(TracyClient PRIVATE "${TRACY_PUBLIC_DIR}/client/TracyLiteAll.cpp")
+    target_compile_definitions(TracyClient PRIVATE TRACYLITE_ALL_SEPARATE_TU=1)
     if(MSVC)
         set_source_files_properties("${TRACY_PUBLIC_DIR}/client/TracyLiteAll.cpp"
             PROPERTIES COMPILE_FLAGS "/std:c++17")

@@ -33,7 +33,12 @@
 #include "client/TracyOverride.cpp"
 #include "client/TracyKCore.cpp"
 #  ifdef TRACY_SAVE_NO_SEND
+#    ifdef TRACYLITE_ALL_SEPARATE_TU
+// TracyLiteAll.cpp is compiled as a separate translation unit with C++17.
+// See CMakeLists.txt for the target_sources() entry.
+#    else
 #    include "client/TracyLiteAll.cpp"
+#    endif
 #  endif
 
 #ifdef TRACY_ROCPROF
