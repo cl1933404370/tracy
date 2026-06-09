@@ -402,6 +402,15 @@ if (TRACY_SAVE_NO_SEND)
             PROPERTIES COMPILE_FLAGS "-std=c++17")
     endif()
 
+    # ── TracyLiteAll.cpp (C++17 TU) ────────────────────────────────────
+    if(MSVC)
+        set_source_files_properties("${TRACY_PUBLIC_DIR}/client/TracyLiteAll.cpp"
+            PROPERTIES COMPILE_FLAGS "/std:c++17")
+    else()
+        set_source_files_properties("${TRACY_PUBLIC_DIR}/client/TracyLiteAll.cpp"
+            PROPERTIES COMPILE_FLAGS "-std=c++17")
+    endif()
+
     target_compile_definitions(TracyClient PUBLIC TRACYLITE_PERFETTO=1)
     if(TRACYLITE_PERFETTO_COMPACT_EXPORT)
         target_compile_definitions(TracyClient PRIVATE TRACYLITE_PERFETTO_COMPACT_LEVEL=1)

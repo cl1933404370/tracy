@@ -404,11 +404,6 @@ void HandleCounterEmit(
 std::vector<uint8_t> CollectTrace( const Collector& collector )
 {
     const auto counterTrackMode = PerfettoNativeExporter::GetCounterTrackMode();
-    const auto regularCounterTrackUuid = [&]( const uint32_t tid, const char* name ) {
-        return counterTrackMode == PerfettoNativeExporter::CounterTrackMode::PerThread
-            ? CounterTrackUuid( tid, name )
-            : ProcessCounterTrackUuid( name );
-    };
 
     // Drain all buffered events.
     std::vector<Collector::DrainPacketView> drained;
