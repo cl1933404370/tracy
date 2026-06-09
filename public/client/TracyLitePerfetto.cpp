@@ -265,7 +265,7 @@ template<size_t NP, size_t NS>
     }
 };
 
- struct CounterCacheKeyHash
+  struct CounterCacheKeyHash
 {
     size_t operator()( const CounterCacheKey& v ) const
     {
@@ -277,7 +277,7 @@ template<size_t NP, size_t NS>
     }
 };
 
-struct StringCacheKey
+ struct StringCacheKey
 {
     const void* table;
     uint32_t nameIdx;
@@ -289,7 +289,7 @@ struct StringCacheKey
     }
 };
 
- struct StringCacheKeyHash
+  struct StringCacheKeyHash
 {
     size_t operator()( const StringCacheKey& v ) const
     {
@@ -299,9 +299,17 @@ struct StringCacheKey
     }
 };
 
- const char* GetCachedString( const Collector::DrainPacketView& view,
-                                     const uint32_t nameIdx,
-                                     std::unordered_map<StringCacheKey, const char*, StringCacheKeyHash>& cache )
+struct CounterKey
+{
+    const char* name_;
+    uint64_t uuid_;
+    uint32_t tid_;
+    bool perThreadParent_;
+};
+
+  const char* GetCachedString( const Collector::DrainPacketView& view,
+                                      const uint32_t nameIdx,
+                                      std::unordered_map<StringCacheKey, const char*, StringCacheKeyHash>& cache )
 {
     const auto key = StringCacheKey{ view.stringTable_, nameIdx };
     const auto it = cache.find( key );
@@ -309,6 +317,86 @@ struct StringCacheKey
     const char* s = view.stringTable_->Get( nameIdx );
     cache.emplace( key, s );
     return s;
+}
+
+template<bool IsDouble>
+inline uint32_t CounterNameRefIdx( const QueuePacketLite::Payload& p );
+
+template<>
+inline uint32_t CounterNameRefIdx<false>( const QueuePacketLite::Payload& p )
+{
+    return p.counter_.nameRef_.idx_;
+}
+
+template<>
+inline uint32_t CounterNameRefIdx<true>( const QueuePacketLite::Payload& p )
+{
+    return p.counterDouble_.nameRef_.idx_;
+}
+
+template<bool IsDouble>
+void HandleCounterPreScan(
+    const Collector::DrainPacketView& view,
+    std::unordered_map<CounterCacheKey, uint64_t, CounterCacheKeyHash>& counterUuidCache,
+    std::unordered_map<StringCacheKey, const char*, StringCacheKeyHash>& stringCache,
+    std::unordered_set<uint64_t>& counterUuids,
+    std::vector<CounterKey>& counterKeys,
+    const PerfettoNativeExporter::CounterTrackMode counterTrackMode )
+{
+    const auto nameRefIdx = CounterNameRefIdx<IsDouble>( view.packet_.payload_ );
+    const auto key = CounterCacheKey{ view.stringTable_, view.packet_.threadId_, nameRefIdx };
+    auto itUuid = counterUuidCache.find( key );
+    uint64_t uuid;
+    const char* cname = nullptr;
+    if( itUuid != counterUuidCache.end() )
+    {
+        uuid = itUuid->second;
+    }
+    else
+    {
+        cname = GetCachedString( view, nameRefIdx, stringCache );
+        uuid = counterTrackMode == PerfettoNativeExporter::CounterTrackMode::PerThread
+            ? CounterTrackUuid( view.packet_.threadId_, cname )
+            : ProcessCounterTrackUuid( cname );
+        counterUuidCache.emplace( key, uuid );
+    }
+    if( counterUuids.insert( uuid ).second )
+    {
+        if( !cname ) cname = GetCachedString( view, nameRefIdx, stringCache );
+        counterKeys.push_back( { cname, uuid, view.packet_.threadId_, counterTrackMode == PerfettoNativeExporter::CounterTrackMode::PerThread } );
+    }
+}
+
+template<bool IsDouble>
+void HandleCounterEmit(
+    const Collector::DrainPacketView& view,
+    const QueuePacketLite& packet,
+    const StringTable& stringTable,
+    std::unordered_map<CounterCacheKey, uint64_t, CounterCacheKeyHash>& counterUuidCache,
+    std::unordered_map<StringCacheKey, const char*, StringCacheKeyHash>& stringCache,
+    const PerfettoNativeExporter::CounterTrackMode counterTrackMode,
+    protozero::HeapBuffered<perfetto::protos::pbzero::TracePacket>& pkt )
+{
+    const auto nameRefIdx = CounterNameRefIdx<IsDouble>( packet.payload_ );
+    const char* name = GetCachedString( view, nameRefIdx, stringCache );
+    const auto key = CounterCacheKey{ &stringTable, packet.threadId_, nameRefIdx };
+    auto itUuid = counterUuidCache.find( key );
+    const auto counterUuid = itUuid != counterUuidCache.end() ? itUuid->second
+        : ( counterTrackMode == PerfettoNativeExporter::CounterTrackMode::PerThread
+            ? CounterTrackUuid( packet.threadId_, name )
+            : ProcessCounterTrackUuid( name ) );
+    if( itUuid == counterUuidCache.end() ) counterUuidCache.emplace( key, counterUuid );
+    auto* te = pkt->set_track_event();
+    te->set_type( perfetto::protos::pbzero::TrackEvent::TYPE_COUNTER );
+    te->set_track_uuid( counterUuid );
+    if constexpr ( IsDouble )
+    {
+        te->set_double_counter_value( packet.payload_.counterDouble_.value_ );
+    }
+    else
+    {
+        te->set_counter_value( packet.payload_.counter_.value_ );
+    }
 }
 
 // ── Core serialisation ──────────────────────────────────────────────────────
@@ -348,18 +436,6 @@ std::vector<uint8_t> CollectTrace( const Collector& collector )
     // track descriptor packets before any events.
     std::unordered_set<uint32_t> threadIds;
     threadIds.reserve( std::min<size_t>( drained.size(), 4096 ) );
-    // CounterKey names are pointers into either:
-    //   - a string literal ("Heap Size"), or
-    //   - a StringTable's internal std::string buffer obtained via Get().
-    // Both remain valid for the duration of CollectTrace(): exporters do not
-    // Intern() new strings during export, so StringTable storage is stable.
-    struct CounterKey
-    {
-        const char* name_;
-        uint64_t uuid_;
-        uint32_t tid_;
-        bool perThreadParent_;
-    };
     std::vector<CounterKey> counterKeys;
     counterKeys.reserve( std::min<size_t>( drained.size() / 8 + 8, 8192 ) );
     std::unordered_set<uint64_t> counterUuids;
@@ -376,47 +452,11 @@ std::vector<uint8_t> CollectTrace( const Collector& collector )
         threadIds.insert( view.packet_.threadId_ );
         if( view.packet_.tag_ == QueueTypeLite::kCounter )
         {
-            const auto key = CounterCacheKey{ view.stringTable_, view.packet_.threadId_, view.packet_.payload_.counter_.nameRef_.idx_ };
-            auto itUuid = counterUuidCache.find( key );
-            uint64_t uuid;
-            const char* cname = nullptr;
-            if( itUuid != counterUuidCache.end() )
-            {
-                uuid = itUuid->second;
-            }
-            else
-            {
-                cname = GetCachedString( view, view.packet_.payload_.counter_.nameRef_.idx_, stringCache );
-                uuid = regularCounterTrackUuid( view.packet_.threadId_, cname );
-                counterUuidCache.emplace( key, uuid );
-            }
-            if( counterUuids.insert( uuid ).second )
-            {
-                if( !cname ) cname = GetCachedString( view, view.packet_.payload_.counter_.nameRef_.idx_, stringCache );
-                counterKeys.push_back( { cname, uuid, view.packet_.threadId_, counterTrackMode == PerfettoNativeExporter::CounterTrackMode::PerThread } );
-            }
+            HandleCounterPreScan<false>( view, counterUuidCache, stringCache, counterUuids, counterKeys, counterTrackMode );
         }
         else if( view.packet_.tag_ == QueueTypeLite::kCounterDouble )
         {
-            const auto key = CounterCacheKey{ view.stringTable_, view.packet_.threadId_, view.packet_.payload_.counterDouble_.nameRef_.idx_ };
-            auto itUuid = counterUuidCache.find( key );
-            uint64_t uuid;
-            const char* cname = nullptr;
-            if( itUuid != counterUuidCache.end() )
-            {
-                uuid = itUuid->second;
-            }
-            else
-            {
-                cname = GetCachedString( view, view.packet_.payload_.counterDouble_.nameRef_.idx_, stringCache );
-                uuid = regularCounterTrackUuid( view.packet_.threadId_, cname );
-                counterUuidCache.emplace( key, uuid );
-            }
-            if( counterUuids.insert( uuid ).second )
-            {
-                if( !cname ) cname = GetCachedString( view, view.packet_.payload_.counterDouble_.nameRef_.idx_, stringCache );
-                counterKeys.push_back( { cname, uuid, view.packet_.threadId_, counterTrackMode == PerfettoNativeExporter::CounterTrackMode::PerThread } );
-            }
+            HandleCounterPreScan<true>( view, counterUuidCache, stringCache, counterUuids, counterKeys, counterTrackMode );
         }
         else if( view.packet_.tag_ == QueueTypeLite::kMemAlloc || view.packet_.tag_ == QueueTypeLite::kMemFree )       
         {
@@ -621,28 +661,12 @@ std::vector<uint8_t> CollectTrace( const Collector& collector )
         }
         case QueueTypeLite::kCounter:
         {
-            const char* name = GetCachedString( view, packet.payload_.counter_.nameRef_.idx_, stringCache );
-            const auto key = CounterCacheKey{ &stringTable, packet.threadId_, packet.payload_.counter_.nameRef_.idx_ };
-            auto itUuid = counterUuidCache.find( key );
-            const auto counterUuid = itUuid != counterUuidCache.end() ? itUuid->second : regularCounterTrackUuid( packet.threadId_, name );
-            if( itUuid == counterUuidCache.end() ) counterUuidCache.emplace( key, counterUuid );
-            auto* te = pkt->set_track_event();
-            te->set_type( perfetto::protos::pbzero::TrackEvent::TYPE_COUNTER );
-            te->set_track_uuid( counterUuid );
-            te->set_counter_value( packet.payload_.counter_.value_ );
+            HandleCounterEmit<false>( view, packet, stringTable, counterUuidCache, stringCache, counterTrackMode, pkt );
             break;
         }
         case QueueTypeLite::kCounterDouble:
         {
-            const char* name = GetCachedString( view, packet.payload_.counterDouble_.nameRef_.idx_, stringCache );
-            const auto key = CounterCacheKey{ &stringTable, packet.threadId_, packet.payload_.counterDouble_.nameRef_.idx_ };
-            auto itUuid = counterUuidCache.find( key );
-            const auto counterUuid = itUuid != counterUuidCache.end() ? itUuid->second : regularCounterTrackUuid( packet.threadId_, name );
-            if( itUuid == counterUuidCache.end() ) counterUuidCache.emplace( key, counterUuid );
-            auto* te = pkt->set_track_event();
-            te->set_type( perfetto::protos::pbzero::TrackEvent::TYPE_COUNTER );
-            te->set_track_uuid( counterUuid );
-            te->set_double_counter_value( packet.payload_.counterDouble_.value_ );
+            HandleCounterEmit<true>( view, packet, stringTable, counterUuidCache, stringCache, counterTrackMode, pkt );
             break;
         }
         case QueueTypeLite::kMemAlloc:
