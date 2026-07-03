@@ -1241,11 +1241,22 @@ void UnregisterAllCrashKeysForTesting();
 #include <stdlib.h>
 #include <string.h>
 
+#include <cerrno>
+#if defined(__has_include)
+#if __has_include(<charconv>)
 #include <charconv>
+#if defined(__cpp_lib_to_chars) && (__cpp_lib_to_chars >= 201611L)
+#define PERFETTO_BASE_HAS_STD_FROM_CHARS 1
+#endif
+#endif
+#endif
+#include <array>
 #include <cinttypes>
+#include <limits>
 #include <optional>
 #include <string>
 #include <system_error>
+#include <type_traits>
 #include <vector>
 
 // gen_amalgamated expanded: #include "perfetto/ext/base/string_view.h"
@@ -1321,21 +1332,170 @@ inline std::optional<double> StringToDouble(const std::string& s) {
   return CStringToDouble(s.c_str());
 }
 
+namespace string_utils_internal {
+
+inline int CharToDigit(char c) {
+  if (c >= '0' && c <= '9')
+    return c - '0';
+  if (c >= 'a' && c <= 'z')
+    return c - 'a' + 10;
+  if (c >= 'A' && c <= 'Z')
+    return c - 'A' + 10;
+  return -1;
+}
+
+constexpr std::array<uint8_t, 256> MakeDigitTable() {
+  std::array<uint8_t, 256> table = {};
+  for (size_t i = 0; i < table.size(); ++i)
+    table[i] = 0xff;
+  for (uint8_t digit = 0; digit < 10; ++digit)
+    table[static_cast<size_t>('0' + digit)] = digit;
+  for (uint8_t digit = 0; digit < 26; ++digit) {
+    table[static_cast<size_t>('a' + digit)] = static_cast<uint8_t>(10 + digit);
+    table[static_cast<size_t>('A' + digit)] = static_cast<uint8_t>(10 + digit);
+  }
+  return table;
+}
+
+constexpr auto kDigitTable = MakeDigitTable();
+
+template <typename UInt>
+inline bool ParseUnsigned(const char* begin,
+                          const char* end,
+                          int base,
+                          UInt max_value,
+                          UInt* out) {
+  if (begin >= end || base < 2 || base > 36)
+    return false;
+
+  if (base == 10) {
+    const UInt cutoff = max_value / static_cast<UInt>(10);
+    const UInt cutlim = max_value % static_cast<UInt>(10);
+    UInt value = 0;
+    for (const char* p = begin; p < end; ++p) {
+      unsigned digit = static_cast<unsigned>(*p - '0');
+      if (digit > 9)
+        return false;
+      UInt udigit = static_cast<UInt>(digit);
+      if (value > cutoff || (value == cutoff && udigit > cutlim))
+        return false;
+      value = static_cast<UInt>(value * static_cast<UInt>(10) + udigit);
+    }
+    *out = value;
+    return true;
+  }
+
+  if (base == 16) {
+    const UInt cutoff = max_value / static_cast<UInt>(16);
+    const UInt cutlim = max_value % static_cast<UInt>(16);
+    UInt value = 0;
+    for (const char* p = begin; p < end; ++p) {
+      unsigned digit = kDigitTable[static_cast<unsigned char>(*p)];
+      if (digit >= 16)
+        return false;
+      UInt udigit = static_cast<UInt>(digit);
+      if (value > cutoff || (value == cutoff && udigit > cutlim))
+        return false;
+      value = static_cast<UInt>((value << 4) + udigit);
+    }
+    *out = value;
+    return true;
+  }
+
+  const UInt ubase = static_cast<UInt>(base);
+  const UInt cutoff = max_value / ubase;
+  const UInt cutlim = max_value % ubase;
+
+  UInt value = 0;
+  for (const char* p = begin; p < end; ++p) {
+    unsigned digit = kDigitTable[static_cast<unsigned char>(*p)];
+    if (digit >= static_cast<unsigned>(base))
+      return false;
+
+    UInt udigit = static_cast<UInt>(digit);
+    if (value > cutoff || (value == cutoff && udigit > cutlim))
+      return false;
+    value = static_cast<UInt>(value * ubase + udigit);
+  }
+  *out = value;
+  return true;
+}
+
+template <typename T>
+inline std::optional<T> ParseIntegerStringView(const base::StringView& sv,
+                                               int base) {
+  static_assert(std::is_integral<T>::value,
+                "StringViewToNumber only supports integral types");
+
+  const char* begin = sv.begin();
+  const char* end = sv.end();
+  if (begin >= end)
+    return std::nullopt;
+
+  bool negative = false;
+  if constexpr (std::is_signed<T>::value) {
+    if (*begin == '-') {
+      negative = true;
+      ++begin;
+      if (begin >= end)
+        return std::nullopt;
+    }
+  } else if (*begin == '-') {
+    return std::nullopt;
+  }
+
+  if constexpr (std::is_signed<T>::value) {
+    using UnsignedT = typename std::make_unsigned<T>::type;
+    const UnsignedT pos_max = static_cast<UnsignedT>(std::numeric_limits<T>::max());
+    const UnsignedT max_abs = static_cast<UnsignedT>(negative ? (pos_max + 1) : pos_max);
+    UnsignedT magnitude = 0;
+    if (!ParseUnsigned<UnsignedT>(begin, end, base, max_abs, &magnitude))
+      return std::nullopt;
+
+    if (negative) {
+      if (magnitude == static_cast<UnsignedT>(pos_max + 1))
+        return std::numeric_limits<T>::min();
+      return static_cast<T>(-static_cast<T>(magnitude));
+    }
+    return static_cast<T>(magnitude);
+  } else {
+    using UnsignedT = typename std::make_unsigned<T>::type;
+    const UnsignedT max_value = std::numeric_limits<UnsignedT>::max();
+    UnsignedT value = 0;
+    if (!ParseUnsigned<UnsignedT>(begin, end, base, max_value, &value))
+      return std::nullopt;
+    return static_cast<T>(value);
+  }
+}
+
+}  // namespace string_utils_internal
+
 template <typename T>
 inline std::optional<T> StringViewToNumber(const base::StringView& sv,
                                            int base = 10) {
-  // std::from_chars() does not regonize the leading '+' character and only
-  // recognizes '-' so remove the '+' if it exists to avoid errors and match
-  // the behavior of the other string conversion utilities above.
+  static_assert(std::is_integral<T>::value,
+                "StringViewToNumber only supports integral types");
+
+  // std::from_chars does not recognize leading '+' for integer conversions.
   size_t start_offset = !sv.empty() && sv.at(0) == '+' ? 1 : 0;
-  T value;
+  if (start_offset >= sv.size())
+    return std::nullopt;
+
+#if defined(PERFETTO_BASE_HAS_STD_FROM_CHARS)
+  if (base < 2 || base > 36)
+    return std::nullopt;
+
+  T value{};
   auto result =
       std::from_chars(sv.begin() + start_offset, sv.end(), value, base);
-  if (result.ec == std::errc() && result.ptr == sv.end()) {
+  if (result.ec == std::errc() && result.ptr == sv.end())
     return value;
-  } else {
-    return std::nullopt;
-  }
+  return std::nullopt;
+#else
+  return string_utils_internal::ParseIntegerStringView<T>(
+      base::StringView(sv.data() + start_offset, sv.size() - start_offset),
+      base);
+#endif
 }
 
 inline std::optional<uint32_t> StringViewToUInt32(const base::StringView& sv,
