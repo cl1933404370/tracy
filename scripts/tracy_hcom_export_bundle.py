@@ -42,6 +42,8 @@ EXTRA_PUBLIC_FILES = [
     "tracy_hcom/TracyHcomApi.h",
     "tracy_hcom/TracyHcomBundle.cmake",
     "public/client/TracyLiteChunkWriter.hpp",
+    # Keep compatibility header exported for downstream include stability.
+    "public/tracy/TracyHcomm.hpp",
 ]
 
 MANIFEST_SCHEMA_VERSION = "1"
