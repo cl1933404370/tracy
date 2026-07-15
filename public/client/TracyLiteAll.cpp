@@ -314,6 +314,13 @@ Collector::Collector() = default;
 
 Collector::~Collector()
 {
+    // Enter teardown mode: increment the thread-local recursion guard so that
+    // MemAlloc/MemFree short-circuit at their existing "if(sMemRecurse) return"
+    // check.  This prevents the global operator-delete hook (TracyLiteMemHook)
+    // from re-entering GetThreadState() and dereferencing sTlsState_ while we
+    // are deleting the very ThreadState nodes it points to.
+    // Not decremented: the program is exiting, no further recording is needed.
+    ++sMemRecurse;
     auto* retired = sRetiredThreadStateHead_.exchange( nullptr, std::memory_order_acq_rel );
     while( retired )
     {
