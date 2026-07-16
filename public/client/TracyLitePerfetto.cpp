@@ -422,7 +422,10 @@ std::vector<uint8_t> CollectTrace( const Collector& collector )
     }
     else if( !std::is_sorted( drained.begin(), drained.end(), tsLess ) )
     {
-        std::sort( drained.begin(), drained.end(), tsLess );
+        // Keep producer/enqueue order for equal timestamps. Perfetto assigns
+        // depth by packet order when ts is identical, so unstable sort can
+        // intermittently invert parent/child SLICE_BEGIN nesting.
+        std::stable_sort( drained.begin(), drained.end(), tsLess );
     }
 
     const auto startTimestampRaw = drained.front().packet_.timestamp_;
