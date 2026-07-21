@@ -44,6 +44,8 @@ EXTRA_PUBLIC_FILES = [
     "public/client/TracyLiteChunkWriter.hpp",
     # Keep compatibility header exported for downstream include stability.
     "public/tracy/TracyHcomm.hpp",
+    # Host-side trace reconstruction script (TRACYLITE_CHUNK → .perfetto-trace).
+    "scripts/tracylite_reconstruct.py",
 ]
 
 MANIFEST_SCHEMA_VERSION = "1"
